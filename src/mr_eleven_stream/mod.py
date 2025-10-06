@@ -254,7 +254,7 @@ async def speak(
     text: str,
     voice_id: Optional[str] = None,
     context: Optional[Dict[str, Any]] = None
-) -> str:
+) -> None:
     """
     Convert text to speech using ElevenLabs streaming TTS.
     
@@ -270,7 +270,7 @@ async def speak(
         context: MindRoot context (optional)
     
     Returns:
-        str: Status message indicating streaming completion
+        None
     
     Example:
         { "speak": { "text": "Hello, this is a test message" } }
@@ -288,12 +288,9 @@ async def speak(
             chunk_count += 1
             await service_manager.sip_audio_out_chunk(chunk)
         
-        status_msg = f"Speech streaming completed: {len(text)} characters, {chunk_count} audio chunks"
-        if local_playback:
-            status_msg += " (also played locally)"
-        
-        return status_msg
+        logger.info(f"Speech streaming completed: {len(text)} characters, {chunk_count} audio chunks{' (also played locally)' if local_playback else ''}")
+        return None
         
     except Exception as e:
         logger.error(f"Error in speak command: {str(e)}")
-        return f"Error generating speech: {str(e)}"
+        return None
