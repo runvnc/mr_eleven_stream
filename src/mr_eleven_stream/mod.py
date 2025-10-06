@@ -3,7 +3,7 @@ import asyncio
 import io
 from typing import AsyncGenerator, Optional, Dict, Any
 from elevenlabs.client import ElevenLabs
-from lib.providers.services import service
+from lib.providers.services import service, service_manager
 from lib.providers.commands import command
 import logging
 
