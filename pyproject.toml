@@ -1,0 +1,18 @@
+[build-system]
+requires = ["setuptools>=45", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "mr_eleven_stream"
+version = "1.0.0"
+description = "ElevenLabs streaming TTS plugin for MindRoot"
+requires-python = ">=3.8"
+dependencies = [
+    "elevenlabs>=1.0.0",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest",
+    "pytest-asyncio",
+]
