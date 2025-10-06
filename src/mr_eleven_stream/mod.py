@@ -284,6 +284,7 @@ async def speak(
         local_playback = _get_local_playback_enabled()
         
         async for chunk in stream_tts(text=text, voice_id=voice_id, context=context):
+            logger.debug(f"speak command: streaming audio chunk {chunk_count + 1}, size: {len(chunk)} bytes")
             chunk_count += 1
             service_manager.sip_audio_out_chunk(chunk)
         
