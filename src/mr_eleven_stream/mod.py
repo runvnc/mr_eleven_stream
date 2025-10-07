@@ -1,6 +1,8 @@
 import os
 import asyncio
 import io
+import threading
+from queue import Queue
 from typing import AsyncGenerator, Optional, Dict, Any
 from elevenlabs.client import ElevenLabs
 from lib.providers.services import service, service_manager
@@ -22,6 +24,20 @@ def _get_local_playback_enabled() -> bool:
 def _play_audio_locally(audio_data: bytes, output_format: str) -> None:
     """Play audio data locally using available audio libraries."""
     try:
+        # Directly handle ulaw for local playback to avoid switching stream format
+        if 'ulaw' in output_format.lower():
+            try:
+                import audioop
+                import simpleaudio as sa
+                # Convert ulaw_8000 to 16-bit PCM at 8000 Hz
+                pcm_data = audioop.ulaw2lin(audio_data, 2)
+                # Play mono, 2 bytes per sample, 8000 Hz
+                sa.play_buffer(pcm_data, 1, 2, 8000).wait_done()
+                logger.debug("Played ulaw audio locally via simpleaudio")
+                return
+            except Exception as e:
+                logger.warning(f"ulaw local playback fallback failed: {e}")
+
         # Try to use elevenlabs.play first (if available)
         try:
             from elevenlabs.play import play
@@ -123,61 +139,68 @@ class ElevenLabsStreamer:
         Yields:
             bytes: Audio chunks as they are generated
         """
-        try:
-            logger.info(f"Starting TTS stream for text: {text[:50]}...")
-            
-            # For local playback, we need to use a compatible format
-            playback_format = output_format
-            if self.local_playback_enabled and output_format == "ulaw_8000":
-                # Use MP3 for local playback since ulaw is not widely supported
-                playback_format = "mp3_44100_128"
-                logger.debug("Using MP3 format for local playback instead of ulaw")
-            
-            # Create the streaming request
-            audio_stream = self.client.text_to_speech.stream(
-                text=text,
-                voice_id=voice_id,
-                model_id=model_id,
-                output_format=playback_format,
-                **kwargs
-            )
-            
-            # Collect chunks for local playback if enabled
-            local_audio_buffer = b"" if self.local_playback_enabled else None
-            
-            # Stream the audio chunks
+        # Offload ElevenLabs sync streaming to a background thread to avoid blocking the event loop
+        logger.info(f"Starting TTS stream for text: {text[:50]}...")
+
+        # Keep backend stream format unchanged; local playback will convert if needed
+        playback_format = output_format
+
+        loop = asyncio.get_event_loop()
+        maxsize = int(os.getenv('MR_TTS_QUEUE_MAXSIZE', '64'))
+        q: Queue = Queue(maxsize=maxsize)
+        stop_event = threading.Event()
+        local_buffer = bytearray() if self.local_playback_enabled else None
+
+        def producer():
             chunk_count = 0
-            for chunk in audio_stream:
-                if isinstance(chunk, bytes):
-                    chunk_count += 1
-                    logger.debug(f"Yielding audio chunk {chunk_count}, size: {len(chunk)} bytes")
-                    
-                    # Collect for local playback
-                    if self.local_playback_enabled:
-                        local_audio_buffer += chunk
-                    
-                    yield chunk
-                    
-                    # Allow other coroutines to run
-                    await asyncio.sleep(0)
-            
-            logger.info(f"TTS streaming completed. Total chunks: {chunk_count}")
-            
-            # Play locally if enabled
-            if self.local_playback_enabled and local_audio_buffer:
-                logger.info("Playing audio locally...")
-                # Run in thread pool to avoid blocking
-                loop = asyncio.get_event_loop()
-                await loop.run_in_executor(
-                    None, 
-                    _play_audio_locally, 
-                    local_audio_buffer, 
-                    playback_format
+            try:
+                audio_stream = self.client.text_to_speech.stream(
+                    text=text,
+                    voice_id=voice_id,
+                    model_id=model_id,
+                    output_format=playback_format,
+                    **kwargs
                 )
-            
-        except Exception as e:
-            logger.error(f"Error in TTS streaming: {str(e)}")
-            raise
+                for chunk in audio_stream:
+                    if stop_event.is_set():
+                        break
+                    if isinstance(chunk, bytes):
+                        chunk_count += 1
+                        # Collect for local playback in thread to avoid cross-thread mutation
+                        if local_buffer is not None:
+                            local_buffer.extend(chunk)
+                        # Backpressure to avoid unbounded memory
+                        q.put(chunk)
+                logger.info(f"TTS streaming completed. Total chunks: {chunk_count}")
+            except Exception as e:
+                logger.error(f"Error in TTS streaming (producer): {str(e)}")
+                # Propagate error via sentinel with exception info if needed later
+            finally:
+                # Signal completion
+                q.put(None)
+
+        thread = threading.Thread(target=producer, name="eleven-tts-producer", daemon=True)
+        thread.start()
+
+        try:
+            while True:
+                # Block in a worker thread for queue.get to keep event loop free
+                item = await asyncio.to_thread(q.get)
+                if item is None:
+                    break
+                yield item
+                # Yield control explicitly to keep other tasks responsive
+                await asyncio.sleep(0)
+        finally:
+            # Ensure producer stops if consumer exits early
+            stop_event.set()
+            # Drain any remaining items without blocking shutdown
+            # Play locally if enabled and we have buffered audio
+            if self.local_playback_enabled and local_buffer and len(local_buffer) > 0:
+                logger.info("Playing audio locally...")
+                await loop.run_in_executor(None, _play_audio_locally, bytes(local_buffer), playback_format)
+            # Join briefly to clean up the thread
+            thread.join(timeout=1.0)
 
 # Global streamer instance
 _streamer = None
