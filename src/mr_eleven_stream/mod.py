@@ -278,13 +278,37 @@ async def speak(
     try:
         chunk_count = 0
         local_playback = _get_local_playback_enabled()
-        
+        logger.debug("SPEAK COMMAND") 
+        logger.debug("SPEAK COMMAND") 
+        logger.debug("SPEAK COMMAND") 
+        logger.debug("SPEAK COMMAND") 
+        logger.debug("SPEAK COMMAND") 
+        logger.debug("SPEAK COMMAND") 
+        logger.debug("SPEAK COMMAND") 
+        logger.debug("SPEAK COMMAND") 
+        logger.debug("SPEAK COMMAND") 
+
         async for chunk in stream_tts(text=text, voice_id=voice_id, context=context):
+            logger.debug(f"speak command: streaming audio chunk {chunk_count + 1}, size: {len(chunk)} bytes")
             logger.debug(f"speak command: streaming audio chunk {chunk_count + 1}, size: {len(chunk)} bytes")            
+            logger.debug(f"speak command: streaming audio chunk {chunk_count + 1}, size: {len(chunk)} bytes")            
+            logger.debug(f"speak command: streaming audio chunk {chunk_count + 1}, size: {len(chunk)} bytes")            
+ 
             chunk_count += 1
             should_continue = await service_manager.sip_audio_out_chunk(chunk)
             if not should_continue:
                 logger.info("Aborted speak streaming per SIP request")
+                logger.info("Aborted speak streaming per SIP request")
+                logger.info("Aborted speak streaming per SIP request")
+                logger.info("Aborted speak streaming per SIP request")
+                logger.info("Aborted speak streaming per SIP request")
+                logger.info("Aborted speak streaming per SIP request")
+                logger.info("Aborted speak streaming per SIP request")
+                logger.info("Aborted speak streaming per SIP request")
+                logger.info("Aborted speak streaming per SIP request")
+                logger.info("Aborted speak streaming per SIP request")
+                logger.info("Aborted speak streaming per SIP request")
+ 
                 return None
         
         logger.info(f"Speech streaming completed: {len(text)} characters, {chunk_count} audio chunks{' (also played locally)' if local_playback else ''}")
