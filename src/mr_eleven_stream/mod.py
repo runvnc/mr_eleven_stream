@@ -280,9 +280,12 @@ async def speak(
         local_playback = _get_local_playback_enabled()
         
         async for chunk in stream_tts(text=text, voice_id=voice_id, context=context):
-            logger.debug(f"speak command: streaming audio chunk {chunk_count + 1}, size: {len(chunk)} bytes")
+            logger.debug(f"speak command: streaming audio chunk {chunk_count + 1}, size: {len(chunk)} bytes")            
             chunk_count += 1
-            await service_manager.sip_audio_out_chunk(chunk)
+            should_continue = await service_manager.sip_audio_out_chunk(chunk)
+            if not should_continue:
+                logger.info("Aborted speak streaming per SIP request")
+                return None
         
         logger.info(f"Speech streaming completed: {len(text)} characters, {chunk_count} audio chunks{' (also played locally)' if local_playback else ''}")
         return None
