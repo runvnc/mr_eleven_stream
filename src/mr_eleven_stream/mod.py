@@ -126,19 +126,15 @@ class ElevenLabsStreamer:
         try:
             logger.info(f"Starting TTS stream for text: {text[:50]}...")
             
-            # For local playback, we need to use a compatible format
-            playback_format = output_format
-            if self.local_playback_enabled and output_format == "ulaw_8000":
-                # Use MP3 for local playback since ulaw is not widely supported
-                playback_format = "mp3_44100_128"
-                logger.debug("Using MP3 format for local playback instead of ulaw")
+            # Always use the requested format for streaming (ulaw_8000 for SIP)
+            # Local playback will handle format conversion if needed
             
             # Create the streaming request
             audio_stream = self.client.text_to_speech.stream(
                 text=text,
                 voice_id=voice_id,
                 model_id=model_id,
-                output_format=playback_format,
+                output_format=output_format,
                 **kwargs
             )
             
@@ -172,7 +168,7 @@ class ElevenLabsStreamer:
                     None, 
                     _play_audio_locally, 
                     local_audio_buffer, 
-                    playback_format
+                    output_format
                 )
             
         except Exception as e:
