@@ -11,9 +11,6 @@ import logging
 
 logger = logging.getLogger(__name__)
 
-# Global registry of active TTS streams for cancellation
-_active_tts_streams: Dict[str, threading.Event] = {}
-
 # Default configuration
 DEFAULT_VOICE_ID = "JBFqnCBsd6RMkjVDRZzb"  # George voice
 DEFAULT_MODEL_ID = "eleven_flash_v2_5"  # Ultra-low latency for real-time
@@ -152,7 +149,6 @@ class ElevenLabsStreamer:
         maxsize = int(os.getenv('MR_TTS_QUEUE_MAXSIZE', '64'))
         q: Queue = Queue(maxsize=maxsize)
         stop_event = threading.Event()
-        stream_id = id(stop_event)  # Unique ID for this stream
         local_buffer = bytearray() if self.local_playback_enabled else None
 
         def producer():
@@ -186,10 +182,6 @@ class ElevenLabsStreamer:
         thread = threading.Thread(target=producer, name="eleven-tts-producer", daemon=True)
         thread.start()
 
-        # Register this stream for external cancellation
-        _active_tts_streams[stream_id] = stop_event
-        logger.debug(f"Registered TTS stream {stream_id} for cancellation")
-
         try:
             while True:
                 # Block in a worker thread for queue.get to keep event loop free
@@ -200,8 +192,6 @@ class ElevenLabsStreamer:
                 # Yield control explicitly to keep other tasks responsive
                 await asyncio.sleep(0)
         finally:
-            # Unregister stream
-            _active_tts_streams.pop(stream_id, None)
             # Ensure producer stops if consumer exits early
             stop_event.set()
             # Drain any remaining items without blocking shutdown
