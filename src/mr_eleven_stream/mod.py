@@ -296,7 +296,7 @@ async def speak(
  
             chunk_count += 1
             should_continue = await service_manager.sip_audio_out_chunk(chunk)
-            await asyncio.sleep(0.001)  # Yield to allow barge-in detection
+            await asyncio.sleep(0.005)  # Yield to allow barge-in detection
             if not should_continue:
                 logger.info("Aborted speak streaming per SIP request")
                 logger.info("Aborted speak streaming per SIP request")
@@ -309,9 +309,12 @@ async def speak(
                 logger.info("Aborted speak streaming per SIP request")
                 logger.info("Aborted speak streaming per SIP request")
                 logger.info("Aborted speak streaming per SIP request")
+                asyncio.sleep(0.05)
  
                 return None
-        
+       
+        asyncio.sleep(0.05)
+         
         logger.info(f"Speech streaming completed: {len(text)} characters, {chunk_count} audio chunks{' (also played locally)' if local_playback else ''}")
         return None
         
