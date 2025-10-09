@@ -296,7 +296,10 @@ async def speak(
  
             chunk_count += 1
             should_continue = await service_manager.sip_audio_out_chunk(chunk)
-            await asyncio.sleep(0.005)  # Yield to allow barge-in detection
+            # Calculate realtime pacing based on chunk duration
+            # For ulaw_8000: 8000 bytes/sec, so duration = len(chunk) / 8000
+            chunk_duration = len(chunk) / 8000.0  # seconds of audio
+            await asyncio.sleep(chunk_duration * 0.85)  # Sleep for 85% to maintain buffer
             if not should_continue:
                 logger.info("Aborted speak streaming per SIP request")
                 logger.info("Aborted speak streaming per SIP request")
