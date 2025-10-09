@@ -309,11 +309,11 @@ async def speak(
                 logger.info("Aborted speak streaming per SIP request")
                 logger.info("Aborted speak streaming per SIP request")
                 logger.info("Aborted speak streaming per SIP request")
-                asyncio.sleep(0.05)
+                asyncio.sleep(1.0)
  
                 return None
        
-        asyncio.sleep(0.05)
+        asyncio.sleep(1.0)
          
         logger.info(f"Speech streaming completed: {len(text)} characters, {chunk_count} audio chunks{' (also played locally)' if local_playback else ''}")
         return None
