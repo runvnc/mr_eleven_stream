@@ -75,6 +75,11 @@ def _play_audio_locally(audio_data: bytes, output_format: str) -> None:
                     sample_width=2,  # 16-bit
                     channels=1  # Mono
                 )
+            elif 'ulaw' in output_format.lower():
+                # this is ulaw with sample rate 8000
+                audio = AudioSegment.from_file(io.BytesIO(audio_data), format="ulaw")
+                # we need to set frame rate to 8000
+                audio = audio.set_frame_rate(8000)
             else:
                 # For ulaw and other formats, try to convert
                 logger.warning(f"Unsupported format for local playback: {output_format}")
@@ -293,7 +298,7 @@ async def speak(
                 should_continue = True
                 logger.warning(f"Error sending audio chunk to SIP output: {str(e)}. Is SIP enabled?")
 
-        asyncio.sleep(1.0)
+        await asyncio.sleep(1.0)
          
         logger.info(f"Speech streaming completed: {len(text)} characters, {chunk_count} audio chunks{' (also played locally)' if local_playback else ''}")
         return None
