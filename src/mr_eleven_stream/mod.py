@@ -18,7 +18,8 @@ DEFAULT_OUTPUT_FORMAT = "ulaw_8000"  # Standard for SIP/telephony
 # Local playback support
 def _get_local_playback_enabled() -> bool:
     """Check if local playback is enabled via environment variable."""
-    return os.getenv('MR_TTS_PLAY_LOCAL', '').lower() in ('1', 'true', 'yes', 'on')
+    return service_manager.functions.get('sip_audio_out_chunk', None) is None
+    #return os.getenv('MR_TTS_PLAY_LOCAL', '').lower() in ('1', 'true', 'yes', 'on')
 
 def _play_audio_locally(audio_data: bytes, output_format: str) -> None:
     """Play audio data locally using available audio libraries."""
@@ -190,11 +191,15 @@ class ElevenLabsStreamer:
                 output_format=output_format,
                 **kwargs
             )
-            
-            # Collect chunks for local playback if enabled
+            # functions is a dict
+            # check if 'sip_audio_out_chunk' is available in service_manager
+            if service_manager.functions.get('sip_audio_out_chunk'):
+                self.local_playback_enabled = False
+            else:
+                self.local_playback_enabled = True
+
             local_audio_buffer = b"" if self.local_playback_enabled else None
-            
-            # Stream the audio chunks
+             
             chunk_count = 0
             for chunk in audio_stream:
                 if isinstance(chunk, bytes):
@@ -335,12 +340,13 @@ async def speak(
         async for chunk in stream_tts(text=text, voice_id=voice_id, context=context):
             chunk_count += 1
             try:
-                should_continue = await service_manager.sip_audio_out_chunk(chunk)
-                chunk_duration = len(chunk) / 8000.0  # seconds of audio
-                await asyncio.sleep(chunk_duration * 0.85)  # Sleep for 85% to maintain buffer
-                if not should_continue:
-                    await asyncio.sleep(1.0)
-                    return None
+                if not local_playback:
+                    should_continue = await service_manager.sip_audio_out_chunk(chunk)
+                    chunk_duration = len(chunk) / 8000.0  # seconds of audio
+                    await asyncio.sleep(chunk_duration * 0.85)  # Sleep for 85% to maintain buffer
+                    if not should_continue:
+                        await asyncio.sleep(1.0)
+                        return None
             except Exception as e:
                 should_continue = True
                 logger.warning(f"Error sending audio chunk to SIP output: {str(e)}. Is SIP enabled?")
