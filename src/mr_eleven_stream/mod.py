@@ -278,44 +278,20 @@ async def speak(
     try:
         chunk_count = 0
         local_playback = _get_local_playback_enabled()
-        logger.debug("SPEAK COMMAND") 
-        logger.debug("SPEAK COMMAND") 
-        logger.debug("SPEAK COMMAND") 
-        logger.debug("SPEAK COMMAND") 
-        logger.debug("SPEAK COMMAND") 
-        logger.debug("SPEAK COMMAND") 
-        logger.debug("SPEAK COMMAND") 
-        logger.debug("SPEAK COMMAND") 
-        logger.debug("SPEAK COMMAND") 
 
-        async for chunk in stream_tts(text=text, voice_id=voice_id, context=context):
-            logger.debug(f"speak command: streaming audio chunk {chunk_count + 1}, size: {len(chunk)} bytes")
-            logger.debug(f"speak command: streaming audio chunk {chunk_count + 1}, size: {len(chunk)} bytes")
-            logger.debug(f"speak command: streaming audio chunk {chunk_count + 1}, size: {len(chunk)} bytes")
-            logger.debug(f"speak command: streaming audio chunk {chunk_count + 1}, size: {len(chunk)} bytes")
- 
-            chunk_count += 1
-            should_continue = await service_manager.sip_audio_out_chunk(chunk)
-            # Calculate realtime pacing based on chunk duration
-            # For ulaw_8000: 8000 bytes/sec, so duration = len(chunk) / 8000
-            chunk_duration = len(chunk) / 8000.0  # seconds of audio
-            await asyncio.sleep(chunk_duration * 0.85)  # Sleep for 85% to maintain buffer
-            if not should_continue:
-                logger.info("Aborted speak streaming per SIP request")
-                logger.info("Aborted speak streaming per SIP request")
-                logger.info("Aborted speak streaming per SIP request")
-                logger.info("Aborted speak streaming per SIP request")
-                logger.info("Aborted speak streaming per SIP request")
-                logger.info("Aborted speak streaming per SIP request")
-                logger.info("Aborted speak streaming per SIP request")
-                logger.info("Aborted speak streaming per SIP request")
-                logger.info("Aborted speak streaming per SIP request")
-                logger.info("Aborted speak streaming per SIP request")
-                logger.info("Aborted speak streaming per SIP request")
-                asyncio.sleep(1.0)
- 
-                return None
-       
+            async for chunk in stream_tts(text=text, voice_id=voice_id, context=context):
+                chunk_count += 1
+                try:
+                    should_continue = await service_manager.sip_audio_out_chunk(chunk)
+                    chunk_duration = len(chunk) / 8000.0  # seconds of audio
+                    await asyncio.sleep(chunk_duration * 0.85)  # Sleep for 85% to maintain buffer
+                    if not should_continue:
+                        asyncio.sleep(1.0)
+                        return None
+                except Exception as e:
+                    should_continue = True
+                    logger.warning(f"Error sending audio chunk to SIP output: {str(e)}. Is SIP enabled?")
+
         asyncio.sleep(1.0)
          
         logger.info(f"Speech streaming completed: {len(text)} characters, {chunk_count} audio chunks{' (also played locally)' if local_playback else ''}")
