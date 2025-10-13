@@ -23,19 +23,20 @@ def _play_audio_locally(audio_data: bytes, output_format: str) -> None:
     """Play audio data locally using available audio libraries."""
     try:
         # Try to use elevenlabs.play first (if available)
-        try:
-            from elevenlabs.play import play
-            play(audio_data)
-            logger.debug("Played audio using elevenlabs.play")
-            return
-        except ImportError:
-            pass
+        #try:
+        #    from elevenlabs.play import play
+        #    logger.debug("Trying to play audio locally.")
+        #    play(audio_data)
+        #    logger.debug("Played audio using elevenlabs.play")
+        #    return
+        #except ImportError:
+        #    pass
         
         # Fallback to pygame if available
         try:
             import pygame
             pygame.mixer.init()
-            
+            logger.debug("Trying to play locally with pygame") 
             # Convert audio data to a format pygame can handle
             audio_io = io.BytesIO(audio_data)
             pygame.mixer.music.load(audio_io)
@@ -286,7 +287,7 @@ async def speak(
                 chunk_duration = len(chunk) / 8000.0  # seconds of audio
                 await asyncio.sleep(chunk_duration * 0.85)  # Sleep for 85% to maintain buffer
                 if not should_continue:
-                    asyncio.sleep(1.0)
+                    await asyncio.sleep(1.0)
                     return None
             except Exception as e:
                 should_continue = True
