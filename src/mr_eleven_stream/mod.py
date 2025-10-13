@@ -107,7 +107,6 @@ def _play_audio_locally(audio_data: bytes, output_format: str) -> None:
         try:
             from pydub import AudioSegment
             from pydub.playback import play as pydub_play
-            from pydub.playback import play as pydub_play
             
             # Determine audio format for pydub
             if 'mp3' in output_format.lower():
@@ -128,13 +127,8 @@ def _play_audio_locally(audio_data: bytes, output_format: str) -> None:
                     sample_width=2,  # 16-bit
                     channels=1  # Mono
                 )
-            elif 'ulaw' in output_format.lower():
-                # this is ulaw with sample rate 8000
-                audio = AudioSegment.from_file(io.BytesIO(audio_data), format="ulaw")
-                # we need to set frame rate to 8000
-                audio = audio.set_frame_rate(8000)
             else:
-                # For other formats, try to convert
+                # For other formats (including ulaw), try to convert
                 logger.warning(f"Unsupported format for local playback: {output_format}")
                 return
             
@@ -148,8 +142,7 @@ def _play_audio_locally(audio_data: bytes, output_format: str) -> None:
         
     except Exception as e:
         logger.error(f"Error playing audio locally: {str(e)}")
-class ElevenLabsStreamer:
-    def __init__(self, api_key: Optional[str] = None):
+
 class ElevenLabsStreamer:
     def __init__(self, api_key: Optional[str] = None):
         self.api_key = api_key or os.getenv('ELEVENLABS_API_KEY')
