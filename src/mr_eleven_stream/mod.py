@@ -1,6 +1,7 @@
 import os
 import asyncio
 import io
+import subprocess
 from typing import AsyncGenerator, Optional, Dict, Any
 from elevenlabs.client import ElevenLabs
 from lib.providers.services import service, service_manager
@@ -22,6 +23,57 @@ def _get_local_playback_enabled() -> bool:
 def _play_audio_locally(audio_data: bytes, output_format: str) -> None:
     """Play audio data locally using available audio libraries."""
     try:
+        # Try ffplay first for direct streaming (most efficient)
+        try:
+            logger.debug("Trying to play audio directly with ffplay")
+            
+            # Determine ffplay parameters based on format
+            if 'ulaw' in output_format.lower():
+                # For ulaw, specify format and audio parameters
+                cmd = [
+                    'ffplay', '-nodisp', '-autoexit', '-loglevel', 'quiet',
+                    '-f', 'mulaw', '-ar', '8000', '-ac', '1', '-i', 'pipe:0'
+                ]
+            elif 'mp3' in output_format.lower():
+                cmd = [
+                    'ffplay', '-nodisp', '-autoexit', '-loglevel', 'quiet',
+                    '-f', 'mp3', '-i', 'pipe:0'
+                ]
+            elif 'pcm' in output_format.lower():
+                # Determine sample rate from format
+                sample_rate = 22050
+                if '16000' in output_format:
+                    sample_rate = 16000
+                elif '44100' in output_format:
+                    sample_rate = 44100
+                elif '24000' in output_format:
+                    sample_rate = 24000
+                
+                cmd = [
+                    'ffplay', '-nodisp', '-autoexit', '-loglevel', 'quiet',
+                    '-f', 's16le', '-ar', str(sample_rate), '-ac', '1', '-i', 'pipe:0'
+                ]
+            else:
+                # Try generic format
+                cmd = [
+                    'ffplay', '-nodisp', '-autoexit', '-loglevel', 'quiet',
+                    '-i', 'pipe:0'
+                ]
+            
+            # Pipe audio data directly to ffplay
+            process = subprocess.Popen(cmd, stdin=subprocess.PIPE)
+            process.communicate(input=audio_data)
+            
+            if process.returncode == 0:
+                logger.debug("Played audio using ffplay")
+                return
+            else:
+                logger.warning(f"ffplay failed with return code {process.returncode}")
+        except FileNotFoundError:
+            logger.debug("ffplay not available")
+        except Exception as e:
+            logger.warning(f"ffplay error: {str(e)}")
+        
         # Try to use elevenlabs.play first (if available)
         #try:
         #    from elevenlabs.play import play
@@ -55,6 +107,7 @@ def _play_audio_locally(audio_data: bytes, output_format: str) -> None:
         try:
             from pydub import AudioSegment
             from pydub.playback import play as pydub_play
+            from pydub.playback import play as pydub_play
             
             # Determine audio format for pydub
             if 'mp3' in output_format.lower():
@@ -81,7 +134,7 @@ def _play_audio_locally(audio_data: bytes, output_format: str) -> None:
                 # we need to set frame rate to 8000
                 audio = audio.set_frame_rate(8000)
             else:
-                # For ulaw and other formats, try to convert
+                # For other formats, try to convert
                 logger.warning(f"Unsupported format for local playback: {output_format}")
                 return
             
@@ -91,11 +144,12 @@ def _play_audio_locally(audio_data: bytes, output_format: str) -> None:
         except ImportError:
             pass
         
-        logger.warning("No audio playback library available. Install elevenlabs[play], pygame, or pydub+simpleaudio for local playback.")
+        logger.warning("No audio playback library available. Install ffplay, elevenlabs[play], pygame, or pydub+simpleaudio for local playback.")
         
     except Exception as e:
         logger.error(f"Error playing audio locally: {str(e)}")
-
+class ElevenLabsStreamer:
+    def __init__(self, api_key: Optional[str] = None):
 class ElevenLabsStreamer:
     def __init__(self, api_key: Optional[str] = None):
         self.api_key = api_key or os.getenv('ELEVENLABS_API_KEY')
