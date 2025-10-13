@@ -279,18 +279,18 @@ async def speak(
         chunk_count = 0
         local_playback = _get_local_playback_enabled()
 
-            async for chunk in stream_tts(text=text, voice_id=voice_id, context=context):
-                chunk_count += 1
-                try:
-                    should_continue = await service_manager.sip_audio_out_chunk(chunk)
-                    chunk_duration = len(chunk) / 8000.0  # seconds of audio
-                    await asyncio.sleep(chunk_duration * 0.85)  # Sleep for 85% to maintain buffer
-                    if not should_continue:
-                        asyncio.sleep(1.0)
-                        return None
-                except Exception as e:
-                    should_continue = True
-                    logger.warning(f"Error sending audio chunk to SIP output: {str(e)}. Is SIP enabled?")
+        async for chunk in stream_tts(text=text, voice_id=voice_id, context=context):
+            chunk_count += 1
+            try:
+                should_continue = await service_manager.sip_audio_out_chunk(chunk)
+                chunk_duration = len(chunk) / 8000.0  # seconds of audio
+                await asyncio.sleep(chunk_duration * 0.85)  # Sleep for 85% to maintain buffer
+                if not should_continue:
+                    asyncio.sleep(1.0)
+                    return None
+            except Exception as e:
+                should_continue = True
+                logger.warning(f"Error sending audio chunk to SIP output: {str(e)}. Is SIP enabled?")
 
         asyncio.sleep(1.0)
          
