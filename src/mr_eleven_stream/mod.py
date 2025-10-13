@@ -191,7 +191,7 @@ class ElevenLabsStreamer:
             # Always use the requested format for streaming (ulaw_8000 for SIP)
             # Local playback will handle format conversion if needed
             if self.local_playback_enabled:
-                output_format = "mp3"
+                output_format = "mp3_22050_32"
             # Create the streaming request
             audio_stream = self.client.text_to_speech.stream(
                 text=text,
