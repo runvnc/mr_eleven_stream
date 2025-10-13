@@ -24,6 +24,16 @@ def _get_local_playback_enabled() -> bool:
 def _play_audio_locally(audio_data: bytes, output_format: str) -> None:
     """Play audio data locally using available audio libraries."""
     try:
+        # Try to use elevenlabs.play first (if available)
+        try:
+            from elevenlabs.play import play
+            logger.debug("Trying to play audio locally.")
+            play(audio_data)
+            logger.debug("Played audio using elevenlabs.play")
+            return
+        except ImportError:
+            pass
+ 
         # Try ffplay first for direct streaming (most efficient)
         try:
             logger.debug("Trying to play audio directly with ffplay")
@@ -75,16 +85,7 @@ def _play_audio_locally(audio_data: bytes, output_format: str) -> None:
         except Exception as e:
             logger.warning(f"ffplay error: {str(e)}")
         
-        # Try to use elevenlabs.play first (if available)
-        #try:
-        #    from elevenlabs.play import play
-        #    logger.debug("Trying to play audio locally.")
-        #    play(audio_data)
-        #    logger.debug("Played audio using elevenlabs.play")
-        #    return
-        #except ImportError:
-        #    pass
-        
+       
         # Fallback to pygame if available
         try:
             import pygame
@@ -179,10 +180,18 @@ class ElevenLabsStreamer:
         """
         try:
             logger.info(f"Starting TTS stream for text: {text[:50]}...")
+
+            # functions is a dict
+            # check if 'sip_audio_out_chunk' is available in service_manager
+            if service_manager.functions.get('sip_audio_out_chunk'):
+                self.local_playback_enabled = False
+            else:
+                self.local_playback_enabled = True
             
             # Always use the requested format for streaming (ulaw_8000 for SIP)
             # Local playback will handle format conversion if needed
-            
+            if self.local_playback_enabled:
+                output_format = "mp3"
             # Create the streaming request
             audio_stream = self.client.text_to_speech.stream(
                 text=text,
@@ -191,13 +200,6 @@ class ElevenLabsStreamer:
                 output_format=output_format,
                 **kwargs
             )
-            # functions is a dict
-            # check if 'sip_audio_out_chunk' is available in service_manager
-            if service_manager.functions.get('sip_audio_out_chunk'):
-                self.local_playback_enabled = False
-            else:
-                self.local_playback_enabled = True
-
             local_audio_buffer = b"" if self.local_playback_enabled else None
              
             chunk_count = 0
