@@ -335,11 +335,19 @@ async def speak(
     Environment Variables:
         MR_TTS_PLAY_LOCAL: Set to '1', 'true', 'yes', or 'on' to enable local playback
     """
+    voiceid = voice_id or DEFAULT_VOICE_ID
     try:
         chunk_count = 0
         local_playback = _get_local_playback_enabled()
+        try:
+            agent_data = await service_manager.get_agent_data(context.agent_name)
+            persona = agent_data["persona"]
+            voiceid = persona.get("voice_id", DEFAULT_VOICE_ID)
+        except Exception as e:
+            logger.warning(f"Could not get agent persona voice_id, using default. Error: {str(e)}")
+            voiceid = voice_id or DEFAULT_VOICE_ID
 
-        async for chunk in stream_tts(text=text, voice_id=voice_id, context=context):
+        async for chunk in stream_tts(text=text, voice_id=voiceid, context=context):
             chunk_count += 1
             try:
                 if not local_playback:
