@@ -373,7 +373,7 @@ async def speak(
                 logger.warning(f"Error sending audio chunk to SIP output: {str(e)}. Is SIP enabled?")
 
         if not local_playback:
-            await asyncio.sleep(1.0)
+            await asyncio.sleep(0.2)
          
         logger.info(f"Speech streaming completed: {len(text)} characters, {chunk_count} audio chunks{' (also played locally)' if local_playback else ''}")
         return None
