@@ -357,7 +357,6 @@ async def speak(
             logger.warning(f"Could not get agent persona voice_id, using default. Error: {str(e)}")
             voiceid = voice_id or DEFAULT_VOICE_ID
 
-
         async for chunk in stream_tts(text=text, voice_id=voiceid, context=context):
             chunk_count += 1
             try:
