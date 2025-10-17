@@ -14,6 +14,10 @@ logger = logging.getLogger(__name__)
 DEFAULT_VOICE_ID = "JBFqnCBsd6RMkjVDRZzb"  # George voice
 DEFAULT_MODEL_ID = "eleven_flash_v2_5"  # Ultra-low latency for real-time
 DEFAULT_OUTPUT_FORMAT = "ulaw_8000"  # Standard for SIP/telephony
+SIMILARITY_BOOST_DEFAULT = os.environ.get('ELEVENLABS_SIMILARITY_BOOST_DEFAULT', 0.75)
+SPEECH_SPEED_DEFAULT = os.environ.get('ELEVENLABS_SPEECH_SPEED_DEFAULT', 1.0)
+STABILITY_DEFAULT = os.environ.get('ELEVENLABS_STABILITY_DEFAULT', 0.5)
+
 
 # Local playback support
 def _get_local_playback_enabled() -> bool:
@@ -163,6 +167,9 @@ class ElevenLabsStreamer:
         voice_id: str = DEFAULT_VOICE_ID,
         model_id: str = DEFAULT_MODEL_ID,
         output_format: str = DEFAULT_OUTPUT_FORMAT,
+        speed: float = SPEECH_SPEED_DEFAULT,
+        stability: float = STABILITY_DEFAULT,
+        similarity_boost: float = SIMILARITY_BOOST_DEFAULT,
         **kwargs
     ) -> AsyncGenerator[bytes, None]:
         """
@@ -193,6 +200,9 @@ class ElevenLabsStreamer:
             if self.local_playback_enabled:
                 output_format = "mp3_22050_32"
             # Create the streaming request
+            voice_settings = {"stability": stability,
+                              "similarity_boost": similarity_boost,
+                              "speed": speed }
             audio_stream = self.client.text_to_speech.stream(
                 text=text,
                 voice_id=voice_id,
@@ -346,6 +356,7 @@ async def speak(
         except Exception as e:
             logger.warning(f"Could not get agent persona voice_id, using default. Error: {str(e)}")
             voiceid = voice_id or DEFAULT_VOICE_ID
+
 
         async for chunk in stream_tts(text=text, voice_id=voiceid, context=context):
             chunk_count += 1
