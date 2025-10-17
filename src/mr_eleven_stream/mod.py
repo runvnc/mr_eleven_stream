@@ -380,7 +380,8 @@ async def speak(
 
         if not local_playback:
             # show chunk len and total sleep time
-            logger.info(f"Sent {chunk_count} audio chunks, chunk size: {chunk_length} bytes, total sleep time: {total_sleep:.2f} seconds")
+
+            logger.info(f"SPEAK_DEBUG: Sent {chunk_count} audio chunks, chunk size: {chunk_length} bytes, total sleep time: {total_sleep:.2f} seconds")
             await asyncio.sleep(1.0)
          
         logger.info(f"Speech streaming completed: {len(text)} characters, {chunk_count} audio chunks{' (also played locally)' if local_playback else ''}")
