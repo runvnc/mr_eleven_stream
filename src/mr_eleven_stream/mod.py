@@ -357,13 +357,20 @@ async def speak(
             logger.warning(f"Could not get agent persona voice_id, using default. Error: {str(e)}")
             voiceid = voice_id or DEFAULT_VOICE_ID
 
+        total_sleep = 0
+        chunk_length = 0
         async for chunk in stream_tts(text=text, voice_id=voiceid, context=context):
             chunk_count += 1
+
             try:
                 if not local_playback:
                     should_continue = await service_manager.sip_audio_out_chunk(chunk)
+                    if chunk_length == 0:
+                        chunk_length = len(chunk)
                     chunk_duration = len(chunk) / 8000.0  # seconds of audio
-                    await asyncio.sleep(chunk_duration * 0.85)  # Sleep for 85% to maintain buffer
+                    to_wait = chunk_duration * 0.85
+                    await asyncio.sleep(to_wait)
+                    total_sleep += to_wait
                     if not should_continue:
                         await asyncio.sleep(1.0)
                         return None
@@ -372,7 +379,9 @@ async def speak(
                 logger.warning(f"Error sending audio chunk to SIP output: {str(e)}. Is SIP enabled?")
 
         if not local_playback:
-            await asyncio.sleep(0.5)
+            # show chunk len and total sleep time
+            logger.info(f"Sent {chunk_count} audio chunks, chunk size: {chunk_length} bytes, total sleep time: {total_sleep:.2f} seconds")
+            await asyncio.sleep(1.0)
          
         logger.info(f"Speech streaming completed: {len(text)} characters, {chunk_count} audio chunks{' (also played locally)' if local_playback else ''}")
         return None
