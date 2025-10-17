@@ -365,12 +365,13 @@ async def speak(
             try:
                 if not local_playback:
                     should_continue = await service_manager.sip_audio_out_chunk(chunk)
-                    if chunk_length == 0:
-                        chunk_length = len(chunk)
+                    chunk_length = len(chunk)
                     chunk_duration = len(chunk) / 8000.0  # seconds of audio
                     to_wait = chunk_duration * 0.85
                     await asyncio.sleep(to_wait)
                     total_sleep += to_wait
+                    logger.debug(f"SPEAK_DEBUG: Sent {chunk_count} audio chunks, chunk size: {chunk_length} bytes, total sleep time: {total_sleep:.2f} seconds")
+ 
                     if not should_continue:
                         await asyncio.sleep(1.0)
                         return None
