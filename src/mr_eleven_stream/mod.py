@@ -375,6 +375,10 @@ async def speak(
                     if not should_continue:
                         logger.debug("SPEAK_DEBUG: SIP output requested to stop streaming.")
                         await asyncio.sleep(1.0)
+                        if chunk_count < 3:
+                            return """SYSTEM: WARNING - 
+                               _Speech was not output or only partially output because the other party either
+                               had not finished speaking or interrupted your speech._"""
                         return None
             except Exception as e:
                 should_continue = True
