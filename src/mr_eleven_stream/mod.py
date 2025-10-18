@@ -367,7 +367,7 @@ async def speak(
                     should_continue = await service_manager.sip_audio_out_chunk(chunk)
                     chunk_length = len(chunk)
                     chunk_duration = len(chunk) / 8000.0  # seconds of audio
-                    to_wait = chunk_duration * 0.85
+                    to_wait = chunk_duration * 0.98
                     await asyncio.sleep(to_wait)
                     total_sleep += to_wait
                     logger.debug(f"SPEAK_DEBUG: Sent {chunk_count} audio chunks, chunk size: {chunk_length} bytes, total sleep time: {total_sleep:.2f} seconds")
@@ -392,3 +392,4 @@ async def speak(
     except Exception as e:
         logger.error(f"Error in speak command: {str(e)}")
         return None
+
