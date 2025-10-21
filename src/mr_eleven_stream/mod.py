@@ -18,6 +18,9 @@ SIMILARITY_BOOST_DEFAULT = os.environ.get('ELEVENLABS_SIMILARITY_BOOST_DEFAULT',
 SPEECH_SPEED_DEFAULT = os.environ.get('ELEVENLABS_SPEECH_SPEED_DEFAULT', 1.0)
 STABILITY_DEFAULT = os.environ.get('ELEVENLABS_STABILITY_DEFAULT', 0.5)
 
+# Global dictionary to track active speak() calls per log_id
+_active_speak_locks: Dict[str, asyncio.Lock] = {}
+
 
 # Local playback support
 def _get_local_playback_enabled() -> bool:
@@ -347,6 +350,27 @@ async def speak(
     """
     voiceid = voice_id or DEFAULT_VOICE_ID
     try:
+        # Get log_id from context for lock management
+        log_id = None
+        if context and hasattr(context, 'log_id'):
+            log_id = context.log_id
+        
+        # If we have a log_id, check if speak() is already running for it
+        if log_id:
+            # Get or create lock for this log_id
+            if log_id not in _active_speak_locks:
+                _active_speak_locks[log_id] = asyncio.Lock()
+            
+            lock = _active_speak_locks[log_id]
+            
+            # Check if already locked (another speak() is running)
+            if lock.locked():
+                logger.warning(f"speak() already running for log_id {log_id}, rejecting concurrent call")
+                return "ERROR: Speech already in progress for this conversation. Please wait for it to complete."
+            
+            # Acquire the lock
+            await lock.acquire()
+        
         chunk_count = 0
         local_playback = _get_local_playback_enabled()
         try:
@@ -395,3 +419,9 @@ async def speak(
         logger.error(f"Error in speak command: {str(e)}")
         return None
 
+    finally:
+        # Always release the lock if we acquired it
+        if log_id and log_id in _active_speak_locks:
+            lock = _active_speak_locks[log_id]
+            if lock.locked():
+                lock.release()
