@@ -394,7 +394,7 @@ async def speak(
                     to_wait = chunk_duration * 0.95
                     await asyncio.sleep(to_wait)
                     total_sleep += to_wait
-                    logger.debug(f"SPEAK_DEBUG: Sent {chunk_count} audio chunks, chunk size: {chunk_length} bytes, total sleep time: {total_sleep:.2f} seconds")
+                    logger.debug(f"SPEAK_DEBUG: Sent {chunk_count} audio chunks, chunk size: {chunk_length} bytes, total sleep time: {total_sleep:.2f} seconds, log_id: {context.log_id}")
  
                     if not should_continue:
                         logger.debug("SPEAK_DEBUG: SIP output requested to stop streaming.")
