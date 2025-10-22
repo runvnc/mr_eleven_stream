@@ -388,7 +388,7 @@ async def speak(
 
             try:
                 if not local_playback:
-                    should_continue = await service_manager.sip_audio_out_chunk(chunk)
+                    should_continue = await service_manager.sip_audio_out_chunk(chunk, context=context)
                     chunk_length = len(chunk)
                     chunk_duration = len(chunk) / 8000.0  # seconds of audio
                     to_wait = chunk_duration * 0.95
