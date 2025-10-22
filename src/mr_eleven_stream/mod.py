@@ -391,15 +391,15 @@ async def speak(
                     should_continue = await service_manager.sip_audio_out_chunk(chunk)
                     chunk_length = len(chunk)
                     chunk_duration = len(chunk) / 8000.0  # seconds of audio
-                    to_wait = chunk_duration * 0.98
+                    to_wait = chunk_duration * 0.95
                     await asyncio.sleep(to_wait)
                     total_sleep += to_wait
                     logger.debug(f"SPEAK_DEBUG: Sent {chunk_count} audio chunks, chunk size: {chunk_length} bytes, total sleep time: {total_sleep:.2f} seconds")
  
                     if not should_continue:
                         logger.debug("SPEAK_DEBUG: SIP output requested to stop streaming.")
-                        await asyncio.sleep(1.0)
-                        if chunk_count < 3:
+                        await asyncio.sleep(0.1)
+                        if chunk_count < 2:
                             return "SYSTEM: WARNING - Command interrupted!\n\n"
                         return None
             except Exception as e:
@@ -410,7 +410,7 @@ async def speak(
             # show chunk len and total sleep time
 
             logger.info(f"SPEAK_DEBUG: Sent {chunk_count} audio chunks, chunk size: {chunk_length} bytes, total sleep time: {total_sleep:.2f} seconds")
-            await asyncio.sleep(0.25)
+            await asyncio.sleep(0.2)
          
         logger.info(f"Speech streaming completed: {len(text)} characters, {chunk_count} audio chunks{' (also played locally)' if local_playback else ''}")
         return None
