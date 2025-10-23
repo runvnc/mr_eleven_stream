@@ -398,7 +398,7 @@ async def speak(
  
                     if not should_continue:
                         logger.debug("SPEAK_DEBUG: SIP output requested to stop streaming.")
-                        await asyncio.sleep(0.1)
+                        await asyncio.sleep(0.01)
                         if chunk_count < 2:
                             return "SYSTEM: WARNING - Command interrupted!\n\n"
                         return None
@@ -410,7 +410,7 @@ async def speak(
             # show chunk len and total sleep time
 
             logger.info(f"SPEAK_DEBUG: Sent {chunk_count} audio chunks, chunk size: {chunk_length} bytes, total sleep time: {total_sleep:.2f} seconds")
-            await asyncio.sleep(0.2)
+            await asyncio.sleep(0.01)
          
         logger.info(f"Speech streaming completed: {len(text)} characters, {chunk_count} audio chunks{' (also played locally)' if local_playback else ''}")
         return None
