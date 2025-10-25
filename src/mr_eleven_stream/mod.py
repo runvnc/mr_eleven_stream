@@ -6,6 +6,11 @@ from typing import AsyncGenerator, Optional, Dict, Any
 from elevenlabs.client import ElevenLabs
 from lib.providers.services import service, service_manager
 from lib.providers.commands import command
+# use .env for configuration
+import dotenv
+# Load .env file if present
+dotenv.load_dotenv()
+
 import logging
 
 logger = logging.getLogger(__name__)
