@@ -9,6 +9,7 @@ description = "ElevenLabs streaming TTS plugin for MindRoot"
 requires-python = ">=3.8"
 dependencies = [
     "elevenlabs>=1.0.0",
+    "dotenv"
 ]
 
 [project.optional-dependencies]

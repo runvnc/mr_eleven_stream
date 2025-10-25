@@ -8,6 +8,7 @@ setup(
     package_dir={"": "src"},
     install_requires=[
         "elevenlabs>=1.0.0",
+        "dotenv"
     ],
     extras_require={
         "playback": [
