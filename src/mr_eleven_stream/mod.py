@@ -216,6 +216,7 @@ class ElevenLabsStreamer:
                 voice_id=voice_id,
                 model_id=model_id,
                 output_format=output_format,
+                voice_settings=voice_settings,
                 **kwargs
             )
             local_audio_buffer = b"" if self.local_playback_enabled else None
