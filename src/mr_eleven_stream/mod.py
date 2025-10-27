@@ -411,6 +411,8 @@ async def speak(
             except Exception as e:
                 should_continue = True
                 logger.warning(f"Error sending audio chunk to SIP output: {str(e)}. Is SIP enabled?")
+                asyncio.sleep(1)
+                return "Error sending audio chunk to SIP output: {str(e)}"
 
         if not local_playback:
             # show chunk len and total sleep time
