@@ -412,6 +412,11 @@ async def speak(
 
             try:
                 if not local_playback:
+                    # Check if pacer was interrupted before adding more chunks
+                    if pacer.interrupted:
+                        logger.debug("SPEAK_DEBUG: Pacer interrupted, stopping chunk buffering")
+                        break
+                    
                     # Add chunk to pacer buffer (non-blocking)
                     await pacer.add_chunk(chunk)
                     chunk_length = len(chunk)
@@ -426,13 +431,20 @@ async def speak(
             pacer.mark_finished()
             
             # Wait for pacer to finish sending all buffered audio
-            logger.debug(f"SPEAK_DEBUG: All {chunk_count} chunks buffered, waiting for pacer to finish...")
-            await pacer.wait_until_done()
+            if not pacer.interrupted:
+                logger.debug(f"SPEAK_DEBUG: All {chunk_count} chunks buffered, waiting for pacer to finish...")
+                await pacer.wait_until_done()
             
             # Stop the pacer
             await pacer.stop()
             
-            logger.info(f"SPEAK_DEBUG: Completed {chunk_count} chunks, {pacer.bytes_sent} bytes sent")
+            if pacer.interrupted:
+                logger.info(f"SPEAK_DEBUG: Interrupted after {chunk_count} chunks, {pacer.bytes_sent} bytes sent")
+                if chunk_count < 2:
+                    return "SYSTEM: WARNING - Command interrupted!\n\n"
+                return None
+            else:
+                logger.info(f"SPEAK_DEBUG: Completed {chunk_count} chunks, {pacer.bytes_sent} bytes sent")
         
         logger.info(f"Speech streaming completed: {len(text)} characters, {chunk_count} audio chunks")
         return None

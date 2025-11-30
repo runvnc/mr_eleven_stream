@@ -37,6 +37,7 @@ class AudioPacer:
         self.bytes_sent = 0
         self.audio_start_time: Optional[float] = None
         self._finished_adding = False  # Flag to indicate no more chunks coming
+        self._interrupted = False  # Flag to indicate interruption occurred
 
     async def add_chunk(self, audio_bytes: bytes):
         """Add audio chunk to buffer."""
@@ -46,6 +47,15 @@ class AudioPacer:
             # Track when first audio chunk arrives
             if self.audio_start_time is None:
                 self.audio_start_time = time.perf_counter()
+
+    @property
+    def interrupted(self) -> bool:
+        """Check if pacer was interrupted."""
+        return self._interrupted
+
+    def _set_interrupted(self):
+        """Mark pacer as interrupted."""
+        self._interrupted = True
 
     def mark_finished(self):
         """Mark that all chunks have been added."""
@@ -57,6 +67,7 @@ class AudioPacer:
         self.audio_start_time = None
         self.bytes_sent = 0
         self.start_time = time.perf_counter()
+        self._interrupted = False
         self._finished_adding = False
         logger.debug("AudioPacer cleared and reset")
 
@@ -71,6 +82,7 @@ class AudioPacer:
         self.context = context
         self._running = True
         self._finished_adding = False
+        self._interrupted = False
         
         # Record absolute start time
         self.start_time = time.perf_counter()
@@ -97,6 +109,7 @@ class AudioPacer:
                     if result is False:
                         # Callback requested stop
                         logger.debug("AudioPacer: callback requested stop")
+                        self._set_interrupted()
                         break
                 except Exception as e:
                     logger.error(f"AudioPacer: error in callback: {e}")
