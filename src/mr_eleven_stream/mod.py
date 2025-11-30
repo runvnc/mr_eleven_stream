@@ -391,6 +391,15 @@ async def speak(
         total_sleep = 0
         chunk_length = 0
         
+        # Resume audio output in case it was halted by an interrupt
+        if not local_playback:
+            try:
+                resume_result = await service_manager.sip_resume_audio(context=context)
+                if resume_result:
+                    logger.debug("SPEAK_DEBUG: Audio output resumed")
+            except Exception as e:
+                logger.warning(f"Could not resume audio (may not be in SIP call): {e}")
+        
         # Use AudioPacer for proper timing when sending to SIP
         if not local_playback:
             pacer = AudioPacer(sample_rate=8000)  # ulaw is 8kHz
