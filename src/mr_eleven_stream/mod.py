@@ -9,6 +9,7 @@ from lib.providers.commands import command
 # use .env for configuration
 import dotenv
 # Load .env file if present
+from .audio_pacer import AudioPacer
 dotenv.load_dotenv()
 
 import logging
@@ -389,38 +390,51 @@ async def speak(
 
         total_sleep = 0
         chunk_length = 0
+        
+        # Use AudioPacer for proper timing when sending to SIP
+        if not local_playback:
+            pacer = AudioPacer(sample_rate=8000)  # ulaw is 8kHz
+            
+            async def send_to_sip(chunk, timestamp=None, context=None):
+                """Callback for AudioPacer to send chunks to SIP."""
+                try:
+                    result = await service_manager.sip_audio_out_chunk(chunk, timestamp=timestamp, context=context)
+                    return result
+                except Exception as e:
+                    logger.error(f"Error sending to SIP: {e}")
+                    return False
+            
+            # Start the pacer
+            await pacer.start_pacing(send_to_sip, context)
+        
         async for chunk in stream_tts(text=text, voice_id=voiceid, context=context):
             chunk_count += 1
 
             try:
                 if not local_playback:
-                    should_continue = await service_manager.sip_audio_out_chunk(chunk, context=context)
+                    # Add chunk to pacer buffer (non-blocking)
+                    await pacer.add_chunk(chunk)
                     chunk_length = len(chunk)
-                    chunk_duration = len(chunk) / 8000.0  # seconds of audio
-                    to_wait = chunk_duration * 0.92
-                    await asyncio.sleep(to_wait)
-                    total_sleep += to_wait
-                    logger.debug(f"SPEAK_DEBUG: Sent {chunk_count} audio chunks, chunk size: {chunk_length} bytes, total sleep time: {total_sleep:.2f} seconds, log_id: {context.log_id}")
- 
-                    if not should_continue:
-                        logger.debug("SPEAK_DEBUG: SIP output requested to stop streaming.")
-                        await asyncio.sleep(0.01)
-                        if chunk_count < 2:
-                            return "SYSTEM: WARNING - Command interrupted!\n\n"
-                        return None
+                    logger.debug(f"SPEAK_DEBUG: Buffered chunk {chunk_count}, size: {chunk_length} bytes")
             except Exception as e:
-                should_continue = True
                 logger.warning(f"Error sending audio chunk to SIP output: {str(e)}. Is SIP enabled?")
-                asyncio.sleep(1)
+                await asyncio.sleep(1)
                 return "Error sending audio chunk to SIP output: {str(e)}"
 
         if not local_playback:
-            # show chunk len and total sleep time
-
-            logger.info(f"SPEAK_DEBUG: Sent {chunk_count} audio chunks, chunk size: {chunk_length} bytes, total sleep time: {total_sleep:.2f} seconds")
-            await asyncio.sleep(0.01)
-         
-        logger.info(f"Speech streaming completed: {len(text)} characters, {chunk_count} audio chunks{' (also played locally)' if local_playback else ''}")
+            # Mark that all chunks have been added
+            pacer.mark_finished()
+            
+            # Wait for pacer to finish sending all buffered audio
+            logger.debug(f"SPEAK_DEBUG: All {chunk_count} chunks buffered, waiting for pacer to finish...")
+            await pacer.wait_until_done()
+            
+            # Stop the pacer
+            await pacer.stop()
+            
+            logger.info(f"SPEAK_DEBUG: Completed {chunk_count} chunks, {pacer.bytes_sent} bytes sent")
+        
+        logger.info(f"Speech streaming completed: {len(text)} characters, {chunk_count} audio chunks")
         return None
         
     except Exception as e:
