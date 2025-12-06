@@ -383,16 +383,21 @@ async def speak(
         
         # Check if there's an active realtime streaming session
         # If so, finalize it instead of starting a new TTS call
+        print(f"DEBUG speak(): Checking for active session, log_id={log_id}")
+        print(f"DEBUG speak(): has_active_session={has_active_session(log_id) if log_id else 'no log_id'}")
         if log_id and has_active_session(log_id):
+            print(f"DEBUG speak(): Found active session, finalizing...")
             logger.info(f"Finalizing active realtime TTS session for log_id {log_id}")
             session = get_session(log_id)
             if session:
                 await session.finish()
                 await cleanup_session(log_id)
+            print(f"DEBUG speak(): Session finalized and cleaned up")
             # Release lock before returning
             if log_id and log_id in _active_speak_locks and _active_speak_locks[log_id].locked():
                 _active_speak_locks[log_id].release()
             return None
+        print(f"DEBUG speak(): No active session, falling back to normal TTS")
         
         chunk_count = 0
         local_playback = _get_local_playback_enabled()

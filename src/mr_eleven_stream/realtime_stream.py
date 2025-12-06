@@ -135,6 +135,7 @@ class RealtimeSpeakSession:
             print("DEBUG _process_audio: Starting audio processor")
             # Check if SIP output is available
             sip_available = service_manager.functions.get('sip_audio_out_chunk') is not None
+            print(f"DEBUG _process_audio: SIP available={sip_available}")
             
             if sip_available:
                 # Set up AudioPacer for proper timing
@@ -145,6 +146,7 @@ class RealtimeSpeakSession:
                     return await service_manager.sip_audio_out_chunk(chunk, timestamp=timestamp, context=context)
                 
                 await self._pacer.start_pacing(send_to_sip, self.context)
+                print("DEBUG _process_audio: AudioPacer started")
             
             chunk_count = 0
             while True:
@@ -152,15 +154,18 @@ class RealtimeSpeakSession:
                 try:
                     audio_chunk = self._audio_queue.get_nowait()
                 except queue.Empty:
+                    # Don't print this - too noisy
                     await asyncio.sleep(0.01)
                     continue
                 
                 if audio_chunk is _END_OF_TEXT:
+                    print("DEBUG _process_audio: Received END signal")
                     logger.debug("Audio processor received end signal")
                     break
                 
                 if isinstance(audio_chunk, bytes):
                     chunk_count += 1
+                    print(f"DEBUG _process_audio: Processing chunk {chunk_count}, size={len(audio_chunk)}")
                     logger.debug(f"Processing audio chunk {chunk_count}, size: {len(audio_chunk)}")
                     
                     if sip_available:
