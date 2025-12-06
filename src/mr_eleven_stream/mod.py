@@ -14,6 +14,9 @@ dotenv.load_dotenv()
 
 import logging
 
+# Import realtime streaming support
+from .realtime_stream import has_active_session, get_session, cleanup_session
+
 logger = logging.getLogger(__name__)
 
 # Default configuration
@@ -377,6 +380,19 @@ async def speak(
             
             # Acquire the lock
             await lock.acquire()
+        
+        # Check if there's an active realtime streaming session
+        # If so, finalize it instead of starting a new TTS call
+        if log_id and has_active_session(log_id):
+            logger.info(f"Finalizing active realtime TTS session for log_id {log_id}")
+            session = get_session(log_id)
+            if session:
+                await session.finish()
+                await cleanup_session(log_id)
+            # Release lock before returning
+            if log_id and log_id in _active_speak_locks and _active_speak_locks[log_id].locked():
+                _active_speak_locks[log_id].release()
+            return None
         
         chunk_count = 0
         local_playback = _get_local_playback_enabled()
