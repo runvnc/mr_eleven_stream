@@ -73,14 +73,17 @@ class RealtimeSpeakSession:
         
         This runs in the TTS thread and blocks waiting for text.
         """
+        print("DEBUG _text_iterator: Starting to consume text queue")
         while True:
             try:
                 # Block with timeout to allow checking for shutdown
                 text = self._text_queue.get(timeout=0.1)
                 if text is _END_OF_TEXT:
+                    print("DEBUG _text_iterator: Received END signal")
                     logger.debug("Text iterator received end signal")
                     break
                 if text:
+                    print(f"DEBUG _text_iterator: Yielding text: '{text}'")
                     logger.debug(f"Text iterator yielding: {text[:50]}...")
                     yield text
             except queue.Empty:
@@ -95,6 +98,7 @@ class RealtimeSpeakSession:
         This thread consumes text from _text_queue and produces audio to _audio_queue.
         """
         try:
+            print(f"DEBUG _run_tts_thread: Starting TTS with voice {self.voice_id}")
             logger.info(f"TTS thread started with voice {self.voice_id}")
             
             # Get the audio iterator from ElevenLabs
@@ -111,12 +115,15 @@ class RealtimeSpeakSession:
             for audio_chunk in audio_iterator:
                 if isinstance(audio_chunk, bytes):
                     chunk_count += 1
+                    print(f"DEBUG _run_tts_thread: Got audio chunk {chunk_count}, size={len(audio_chunk)}")
                     logger.debug(f"TTS thread produced audio chunk {chunk_count}, size: {len(audio_chunk)}")
                     self._audio_queue.put(audio_chunk)
             
+            print(f"DEBUG _run_tts_thread: Completed, total chunks={chunk_count}")
             logger.info(f"TTS thread completed. Total chunks: {chunk_count}")
             
         except Exception as e:
+            print(f"DEBUG _run_tts_thread: ERROR - {e}")
             logger.error(f"Error in TTS thread: {e}")
         finally:
             # Signal end of audio
@@ -125,6 +132,7 @@ class RealtimeSpeakSession:
     async def _process_audio(self):
         """Async task that consumes audio from the queue and sends to SIP/playback."""
         try:
+            print("DEBUG _process_audio: Starting audio processor")
             # Check if SIP output is available
             sip_available = service_manager.functions.get('sip_audio_out_chunk') is not None
             
@@ -185,6 +193,7 @@ class RealtimeSpeakSession:
     async def start(self):
         """Start the realtime TTS session."""
         if self.is_active:
+            print("DEBUG RealtimeSpeakSession.start: Session already active")
             logger.warning("Session already active")
             return
         
@@ -194,6 +203,7 @@ class RealtimeSpeakSession:
         self._loop = asyncio.get_event_loop()
         
         # Try to get voice_id from agent persona
+        print("DEBUG RealtimeSpeakSession.start: Getting voice_id from persona")
         try:
             agent_data = await service_manager.get_agent_data(self.context.agent_name)
             persona = agent_data.get("persona", {})
@@ -221,6 +231,7 @@ class RealtimeSpeakSession:
         )
         self._tts_thread.start()
         
+        print(f"DEBUG RealtimeSpeakSession.start: Started TTS thread and audio task, voice={self.voice_id}")
         # Start the audio processing task
         self._audio_task = asyncio.create_task(self._process_audio())
         
@@ -230,6 +241,7 @@ class RealtimeSpeakSession:
         """Feed a text delta to the TTS stream."""
         if not self.is_active:
             logger.warning("Cannot feed text to inactive session")
+            print("DEBUG feed_text: Session not active!")
             return
         
         if delta:
@@ -323,6 +335,7 @@ async def handle_speak_partial(data: dict, context=None) -> dict:
     """Intercepts partial_command calls to detect speak commands
     and stream text deltas to ElevenLabs in realtime.
     """
+    print(f"DEBUG handle_speak_partial: data={data}")
     command = data.get('command')
     
     # Only handle speak commands
@@ -331,6 +344,7 @@ async def handle_speak_partial(data: dict, context=None) -> dict:
     
     log_id = context.log_id if context else None
     if not log_id:
+        print("DEBUG handle_speak_partial: No log_id in context")
         logger.warning("No log_id in context, cannot track session")
         return data
     
@@ -341,8 +355,9 @@ async def handle_speak_partial(data: dict, context=None) -> dict:
         return data
     
     # Get or create session for this log_id
+    print(f"DEBUG handle_speak_partial: log_id={log_id}, new_text length={len(new_text)}")
     if log_id not in _realtime_sessions:
-        logger.info(f"Creating new realtime TTS session for log_id {log_id}")
+        print(f"DEBUG handle_speak_partial: Creating new session for log_id {log_id}")
         session = RealtimeSpeakSession(context=context)
         _realtime_sessions[log_id] = session
         await session.start()
@@ -350,9 +365,11 @@ async def handle_speak_partial(data: dict, context=None) -> dict:
     session = _realtime_sessions[log_id]
     
     # Calculate delta (new text since last update)
+    print(f"DEBUG handle_speak_partial: previous_text length={len(session.previous_text)}, new_text length={len(new_text)}")
     if len(new_text) > len(session.previous_text):
         delta = new_text[len(session.previous_text):]
         if delta:
+            print(f"DEBUG handle_speak_partial: Feeding delta: '{delta}'")
             logger.debug(f"Text delta for speak: '{delta}'")
             await session.feed_text(delta)
             session.previous_text = new_text
