@@ -15,7 +15,7 @@ dotenv.load_dotenv()
 import logging
 
 # Import realtime streaming support
-from .realtime_stream import has_active_session, get_session, cleanup_session
+from .realtime_stream import has_active_session, get_session, cleanup_session, is_realtime_streaming_enabled
 
 logger = logging.getLogger(__name__)
 
@@ -392,9 +392,10 @@ async def speak(
         
         # Check if there's an active realtime streaming session
         # If so, finalize it instead of starting a new TTS call
-        debug_log(f"speak(): Checking for active session, log_id={log_id}")
+        realtime_enabled = is_realtime_streaming_enabled()
+        debug_log(f"speak(): Checking for active session, log_id={log_id}, realtime_enabled={realtime_enabled}")
         debug_log(f"speak(): has_active_session={has_active_session(log_id) if log_id else 'no log_id'}")
-        if log_id and has_active_session(log_id):
+        if realtime_enabled and log_id and has_active_session(log_id):
             debug_log(f"speak(): Found active session, finalizing...")
             logger.info(f"Finalizing active realtime TTS session for log_id {log_id}")
             session = get_session(log_id)

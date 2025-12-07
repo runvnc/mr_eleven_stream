@@ -28,6 +28,12 @@ def debug_log(msg):
     with open(DEBUG_LOG_FILE, 'a') as f:
         f.write(f"{datetime.datetime.now().isoformat()} | {msg}\n")
 
+def is_realtime_streaming_enabled() -> bool:
+    """Check if realtime streaming is enabled via environment variable."""
+    val = os.environ.get('MR_ELEVEN_REALTIME_STREAM', '1').lower()
+    return val in ('1', 'true', 'yes', 'on')
+
+
 # Default configuration (same as mod.py)
 DEFAULT_VOICE_ID = "JBFqnCBsd6RMkjVDRZzb"  # George voice
 DEFAULT_MODEL_ID = "eleven_flash_v2_5"  # Ultra-low latency for real-time
@@ -360,6 +366,10 @@ async def handle_speak_partial(data: dict, context=None) -> dict:
     """Intercepts partial_command calls to detect speak commands
     and stream text deltas to ElevenLabs in realtime.
     """
+    # Check if realtime streaming is enabled
+    if not is_realtime_streaming_enabled():
+        return data  # Skip realtime processing, let normal speak() handle it
+    
     debug_log(f"handle_speak_partial: data={data}")
     command = data.get('command')
     
