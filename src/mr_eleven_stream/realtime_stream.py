@@ -19,6 +19,15 @@ from lib.providers.services import service_manager
 
 logger = logging.getLogger(__name__)
 
+# Debug log file
+DEBUG_LOG_FILE = "/tmp/tts_debug.log"
+
+def debug_log(msg):
+    """Write debug message to dedicated log file."""
+    import datetime
+    with open(DEBUG_LOG_FILE, 'a') as f:
+        f.write(f"{datetime.datetime.now().isoformat()} | {msg}\n")
+
 # Default configuration (same as mod.py)
 DEFAULT_VOICE_ID = "JBFqnCBsd6RMkjVDRZzb"  # George voice
 DEFAULT_MODEL_ID = "eleven_flash_v2_5"  # Ultra-low latency for real-time
@@ -73,17 +82,17 @@ class RealtimeSpeakSession:
         
         This runs in the TTS thread and blocks waiting for text.
         """
-        print("DEBUG _text_iterator: Starting to consume text queue")
+        debug_log("_text_iterator: Starting to consume text queue")
         while True:
             try:
                 # Block with timeout to allow checking for shutdown
                 text = self._text_queue.get(timeout=0.1)
                 if text is _END_OF_TEXT:
-                    print("DEBUG _text_iterator: Received END signal")
+                    debug_log("_text_iterator: Received END signal")
                     logger.debug("Text iterator received end signal")
                     break
                 if text:
-                    print(f"DEBUG _text_iterator: Yielding text: '{text}'")
+                    debug_log(f"_text_iterator: Yielding text: '{text}'")
                     logger.debug(f"Text iterator yielding: {text[:50]}...")
                     yield text
             except queue.Empty:
@@ -98,7 +107,7 @@ class RealtimeSpeakSession:
         This thread consumes text from _text_queue and produces audio to _audio_queue.
         """
         try:
-            print(f"DEBUG _run_tts_thread: Starting TTS with voice {self.voice_id}")
+            debug_log(f"_run_tts_thread: Starting TTS with voice {self.voice_id}")
             logger.info(f"TTS thread started with voice {self.voice_id}")
             
             # Get the audio iterator from ElevenLabs
@@ -115,15 +124,15 @@ class RealtimeSpeakSession:
             for audio_chunk in audio_iterator:
                 if isinstance(audio_chunk, bytes):
                     chunk_count += 1
-                    print(f"DEBUG _run_tts_thread: Got audio chunk {chunk_count}, size={len(audio_chunk)}")
+                    debug_log(f"_run_tts_thread: Got audio chunk {chunk_count}, size={len(audio_chunk)}")
                     logger.debug(f"TTS thread produced audio chunk {chunk_count}, size: {len(audio_chunk)}")
                     self._audio_queue.put(audio_chunk)
             
-            print(f"DEBUG _run_tts_thread: Completed, total chunks={chunk_count}")
+            debug_log(f"_run_tts_thread: Completed, total chunks={chunk_count}")
             logger.info(f"TTS thread completed. Total chunks: {chunk_count}")
             
         except Exception as e:
-            print(f"DEBUG _run_tts_thread: ERROR - {e}")
+            debug_log(f"_run_tts_thread: ERROR - {e}")
             logger.error(f"Error in TTS thread: {e}")
         finally:
             # Signal end of audio
@@ -132,10 +141,10 @@ class RealtimeSpeakSession:
     async def _process_audio(self):
         """Async task that consumes audio from the queue and sends to SIP/playback."""
         try:
-            print("DEBUG _process_audio: Starting audio processor")
+            debug_log("_process_audio: Starting audio processor")
             # Check if SIP output is available
             sip_available = service_manager.functions.get('sip_audio_out_chunk') is not None
-            print(f"DEBUG _process_audio: SIP available={sip_available}")
+            debug_log(f"_process_audio: SIP available={sip_available}")
             
             if sip_available:
                 # Set up AudioPacer for proper timing
@@ -143,10 +152,12 @@ class RealtimeSpeakSession:
                 
                 async def send_to_sip(chunk, timestamp=None, context=None):
                     """Callback for AudioPacer to send chunks to SIP."""
-                    return await service_manager.sip_audio_out_chunk(chunk, timestamp=timestamp, context=context)
+                    result = await service_manager.sip_audio_out_chunk(chunk, timestamp=timestamp, context=context)
+                    debug_log(f"send_to_sip: Sent {len(chunk)} bytes to SIP, result={result}")
+                    return result
                 
                 await self._pacer.start_pacing(send_to_sip, self.context)
-                print("DEBUG _process_audio: AudioPacer started")
+                debug_log("_process_audio: AudioPacer started")
             
             chunk_count = 0
             while True:
@@ -159,18 +170,19 @@ class RealtimeSpeakSession:
                     continue
                 
                 if audio_chunk is _END_OF_TEXT:
-                    print("DEBUG _process_audio: Received END signal")
+                    debug_log("_process_audio: Received END signal")
                     logger.debug("Audio processor received end signal")
                     break
                 
                 if isinstance(audio_chunk, bytes):
                     chunk_count += 1
-                    print(f"DEBUG _process_audio: Processing chunk {chunk_count}, size={len(audio_chunk)}")
+                    debug_log(f"_process_audio: Processing chunk {chunk_count}, size={len(audio_chunk)}")
                     logger.debug(f"Processing audio chunk {chunk_count}, size: {len(audio_chunk)}")
                     
                     if sip_available:
                         # Add to pacer buffer - it will handle timing and timestamps
                         await self._pacer.add_chunk(audio_chunk)
+                        debug_log(f"_process_audio: Added chunk {chunk_count} to pacer, pacer buffer size={len(self._pacer.buffer)}")
                         
                         # Check if pacer was interrupted
                         if self._pacer.interrupted:
@@ -185,20 +197,23 @@ class RealtimeSpeakSession:
     
     async def _finalize_pacer(self):
         """Finalize the audio pacer - mark finished and wait for completion."""
+        debug_log("_finalize_pacer: Starting pacer finalization")
         if self._pacer:
             self._pacer.mark_finished()
+            debug_log(f"_finalize_pacer: Pacer marked finished, buffer size={len(self._pacer.buffer)}, bytes_sent={self._pacer.bytes_sent}")
             
             if not self._pacer.interrupted:
                 logger.debug("Waiting for pacer to finish sending buffered audio...")
+                debug_log("_finalize_pacer: Waiting for pacer to drain...")
                 await self._pacer.wait_until_done()
             
             await self._pacer.stop()
-            logger.info(f"Pacer finished, sent {self._pacer.bytes_sent} bytes")
+            debug_log(f"_finalize_pacer: Pacer stopped, total bytes_sent={self._pacer.bytes_sent}")
     
     async def start(self):
         """Start the realtime TTS session."""
         if self.is_active:
-            print("DEBUG RealtimeSpeakSession.start: Session already active")
+            debug_log("RealtimeSpeakSession.start: Session already active")
             logger.warning("Session already active")
             return
         
@@ -208,7 +223,7 @@ class RealtimeSpeakSession:
         self._loop = asyncio.get_event_loop()
         
         # Try to get voice_id from agent persona
-        print("DEBUG RealtimeSpeakSession.start: Getting voice_id from persona")
+        debug_log("RealtimeSpeakSession.start: Getting voice_id from persona")
         try:
             agent_data = await service_manager.get_agent_data(self.context.agent_name)
             persona = agent_data.get("persona", {})
@@ -236,7 +251,7 @@ class RealtimeSpeakSession:
         )
         self._tts_thread.start()
         
-        print(f"DEBUG RealtimeSpeakSession.start: Started TTS thread and audio task, voice={self.voice_id}")
+        debug_log(f"RealtimeSpeakSession.start: Started TTS thread and audio task, voice={self.voice_id}")
         # Start the audio processing task
         self._audio_task = asyncio.create_task(self._process_audio())
         
@@ -246,7 +261,7 @@ class RealtimeSpeakSession:
         """Feed a text delta to the TTS stream."""
         if not self.is_active:
             logger.warning("Cannot feed text to inactive session")
-            print("DEBUG feed_text: Session not active!")
+            debug_log("feed_text: Session not active!")
             return
         
         if delta:
@@ -260,9 +275,6 @@ class RealtimeSpeakSession:
         
         # Signal end of text
         self._text_queue.put(_END_OF_TEXT)
-        
-        # Finalize the pacer first (wait for buffered audio to be sent)
-        await self._finalize_pacer()
         
         # Wait for TTS thread to complete
         if self._tts_thread and self._tts_thread.is_alive():
@@ -279,6 +291,9 @@ class RealtimeSpeakSession:
                 self._audio_task.cancel()
             except Exception as e:
                 logger.error(f"Error waiting for audio task: {e}")
+        
+        # NOW finalize the pacer (wait for all buffered audio to be sent)
+        await self._finalize_pacer()
         
         self.is_active = False
         logger.info("Realtime TTS session finished")
@@ -340,7 +355,7 @@ async def handle_speak_partial(data: dict, context=None) -> dict:
     """Intercepts partial_command calls to detect speak commands
     and stream text deltas to ElevenLabs in realtime.
     """
-    print(f"DEBUG handle_speak_partial: data={data}")
+    debug_log(f"handle_speak_partial: data={data}")
     command = data.get('command')
     
     # Only handle speak commands
@@ -349,7 +364,7 @@ async def handle_speak_partial(data: dict, context=None) -> dict:
     
     log_id = context.log_id if context else None
     if not log_id:
-        print("DEBUG handle_speak_partial: No log_id in context")
+        debug_log("handle_speak_partial: No log_id in context")
         logger.warning("No log_id in context, cannot track session")
         return data
     
@@ -360,9 +375,9 @@ async def handle_speak_partial(data: dict, context=None) -> dict:
         return data
     
     # Get or create session for this log_id
-    print(f"DEBUG handle_speak_partial: log_id={log_id}, new_text length={len(new_text)}")
+    debug_log(f"handle_speak_partial: log_id={log_id}, new_text length={len(new_text)}")
     if log_id not in _realtime_sessions:
-        print(f"DEBUG handle_speak_partial: Creating new session for log_id {log_id}")
+        debug_log(f"handle_speak_partial: Creating new session for log_id {log_id}")
         session = RealtimeSpeakSession(context=context)
         _realtime_sessions[log_id] = session
         await session.start()
@@ -370,11 +385,11 @@ async def handle_speak_partial(data: dict, context=None) -> dict:
     session = _realtime_sessions[log_id]
     
     # Calculate delta (new text since last update)
-    print(f"DEBUG handle_speak_partial: previous_text length={len(session.previous_text)}, new_text length={len(new_text)}")
+    debug_log(f"handle_speak_partial: previous_text length={len(session.previous_text)}, new_text length={len(new_text)}")
     if len(new_text) > len(session.previous_text):
         delta = new_text[len(session.previous_text):]
         if delta:
-            print(f"DEBUG handle_speak_partial: Feeding delta: '{delta}'")
+            debug_log(f"handle_speak_partial: Feeding delta: '{delta}'")
             logger.debug(f"Text delta for speak: '{delta}'")
             await session.feed_text(delta)
             session.previous_text = new_text

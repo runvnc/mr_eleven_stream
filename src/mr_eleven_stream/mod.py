@@ -19,6 +19,15 @@ from .realtime_stream import has_active_session, get_session, cleanup_session
 
 logger = logging.getLogger(__name__)
 
+# Debug log file
+DEBUG_LOG_FILE = "/tmp/tts_debug.log"
+
+def debug_log(msg):
+    """Write debug message to dedicated log file."""
+    import datetime
+    with open(DEBUG_LOG_FILE, 'a') as f:
+        f.write(f"{datetime.datetime.now().isoformat()} | {msg}\n")
+
 # Default configuration
 DEFAULT_VOICE_ID = "JBFqnCBsd6RMkjVDRZzb"  # George voice
 DEFAULT_MODEL_ID = "eleven_flash_v2_5"  # Ultra-low latency for real-time
@@ -383,21 +392,21 @@ async def speak(
         
         # Check if there's an active realtime streaming session
         # If so, finalize it instead of starting a new TTS call
-        print(f"DEBUG speak(): Checking for active session, log_id={log_id}")
-        print(f"DEBUG speak(): has_active_session={has_active_session(log_id) if log_id else 'no log_id'}")
+        debug_log(f"speak(): Checking for active session, log_id={log_id}")
+        debug_log(f"speak(): has_active_session={has_active_session(log_id) if log_id else 'no log_id'}")
         if log_id and has_active_session(log_id):
-            print(f"DEBUG speak(): Found active session, finalizing...")
+            debug_log(f"speak(): Found active session, finalizing...")
             logger.info(f"Finalizing active realtime TTS session for log_id {log_id}")
             session = get_session(log_id)
             if session:
                 await session.finish()
                 await cleanup_session(log_id)
-            print(f"DEBUG speak(): Session finalized and cleaned up")
+            debug_log(f"speak(): Session finalized and cleaned up")
             # Release lock before returning
             if log_id and log_id in _active_speak_locks and _active_speak_locks[log_id].locked():
                 _active_speak_locks[log_id].release()
             return None
-        print(f"DEBUG speak(): No active session, falling back to normal TTS")
+        debug_log(f"speak(): No active session, falling back to normal TTS")
         
         chunk_count = 0
         local_playback = _get_local_playback_enabled()
