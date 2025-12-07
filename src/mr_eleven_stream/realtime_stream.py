@@ -276,9 +276,12 @@ class RealtimeSpeakSession:
         # Signal end of text
         self._text_queue.put(_END_OF_TEXT)
         
+        # Wait for TTS thread to complete (non-blocking to allow async tasks to run)
+        loop = asyncio.get_event_loop()
         # Wait for TTS thread to complete
         if self._tts_thread and self._tts_thread.is_alive():
-            self._tts_thread.join(timeout=30.0)
+            # Use run_in_executor to avoid blocking the event loop
+            await loop.run_in_executor(None, lambda: self._tts_thread.join(timeout=30.0))
             if self._tts_thread.is_alive():
                 logger.warning("TTS thread did not complete in time")
         
@@ -307,6 +310,8 @@ class RealtimeSpeakSession:
         # Signal end of text to unblock the thread
         self._text_queue.put(_END_OF_TEXT)
         
+        # Wait for TTS thread to complete (non-blocking to allow async tasks to run)
+        loop = asyncio.get_event_loop()
         # Stop pacer immediately
         if self._pacer:
             await self._pacer.stop()
@@ -321,7 +326,7 @@ class RealtimeSpeakSession:
         
         # Wait briefly for thread
         if self._tts_thread and self._tts_thread.is_alive():
-            self._tts_thread.join(timeout=2.0)
+            loop = asyncio.get_event_loop(); await loop.run_in_executor(None, lambda: self._tts_thread.join(timeout=2.0))
         
         logger.info("Realtime TTS session cancelled")
 
