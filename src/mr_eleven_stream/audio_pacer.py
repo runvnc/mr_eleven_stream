@@ -119,7 +119,9 @@ class AudioPacer:
                 self.bytes_sent += len(chunk)
                 
                 # Calculate target time based on total bytes sent
-                target_time = self.start_time + (self.bytes_sent / self.sample_rate)
+                # Use audio_start_time (when first audio arrived) for accurate pacing
+                base_time = self.audio_start_time if self.audio_start_time else self.start_time
+                target_time = base_time + (self.bytes_sent / self.sample_rate)
                 
                 # Calculate how long to sleep to hit target time
                 current_time = time.perf_counter()
