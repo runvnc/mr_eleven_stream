@@ -98,13 +98,12 @@ class AudioPacer:
                 chunk = self.buffer.popleft()
                 
                 # Calculate timestamp for this chunk (DISABLED - causing timing issues)
-                # if self.audio_start_time:
-                #     chunk_timestamp = self.audio_start_time + (self.bytes_sent / self.sample_rate)
-                # else:
-                #     chunk_timestamp = None
-                chunk_timestamp = None  # Temporarily disabled
+                if self.audio_start_time:
+                     chunk_timestamp = self.audio_start_time + (self.bytes_sent / self.sample_rate)
+                else:
+                     chunk_timestamp = None
+                #chunk_timestamp = None
                 
-                # Send the chunk (without timestamp for now)
                 try:
                     result = await self.on_audio_chunk(chunk, timestamp=chunk_timestamp, context=self.context)
                     if result is False:

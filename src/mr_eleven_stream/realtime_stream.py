@@ -30,7 +30,7 @@ def debug_log(msg):
 
 def is_realtime_streaming_enabled() -> bool:
     """Check if realtime streaming is enabled via environment variable."""
-    val = os.environ.get('MR_ELEVEN_REALTIME_STREAM', '1').lower()
+    val = os.environ.get('MR_ELEVEN_REALTIME_STREAM', '0').lower()
     return val in ('1', 'true', 'yes', 'on')
 
 
