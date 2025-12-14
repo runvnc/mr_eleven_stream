@@ -35,6 +35,7 @@ DEFAULT_OUTPUT_FORMAT = "ulaw_8000"  # Standard for SIP/telephony
 SIMILARITY_BOOST_DEFAULT = os.environ.get('ELEVENLABS_SIMILARITY_BOOST_DEFAULT', 0.75)
 SPEECH_SPEED_DEFAULT = os.environ.get('ELEVENLABS_SPEECH_SPEED_DEFAULT', 1.0)
 STABILITY_DEFAULT = os.environ.get('ELEVENLABS_STABILITY_DEFAULT', 0.5)
+USE_SPEAKER_BOOST_DEFAULT = os.environ.get('ELEVENLABS_USE_SPEAKER_BOOST', 'false').lower() in ('true', '1', 'yes', 'on')
 
 # Global dictionary to track active speak() calls per log_id
 _active_speak_locks: Dict[str, asyncio.Lock] = {}
@@ -191,6 +192,7 @@ class ElevenLabsStreamer:
         speed: float = SPEECH_SPEED_DEFAULT,
         stability: float = STABILITY_DEFAULT,
         similarity_boost: float = SIMILARITY_BOOST_DEFAULT,
+        use_speaker_boost: bool = USE_SPEAKER_BOOST_DEFAULT,
         **kwargs
     ) -> AsyncGenerator[bytes, None]:
         """
@@ -223,7 +225,8 @@ class ElevenLabsStreamer:
             # Create the streaming request
             voice_settings = {"stability": stability,
                               "similarity_boost": similarity_boost,
-                              "speed": speed }
+                              "speed": speed,
+                              "use_speaker_boost": use_speaker_boost}
             audio_stream = self.client.text_to_speech.stream(
                 text=text,
                 voice_id=voice_id,
