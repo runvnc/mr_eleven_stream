@@ -233,7 +233,16 @@ class RealtimeSpeakSession:
         try:
             agent_data = await service_manager.get_agent_data(self.context.agent_name)
             persona = agent_data.get("persona", {})
-            self.voice_id = persona.get("voice_id", DEFAULT_VOICE_ID)
+            persona_voice = persona.get("voice_id", DEFAULT_VOICE_ID)
+            
+            # Check if voice_id looks like a file path (not a valid ElevenLabs voice ID)
+            if persona_voice and (persona_voice.startswith('/') or persona_voice.startswith('.') or 
+                                  persona_voice.endswith('.mp3') or persona_voice.endswith('.wav')):
+                logger.warning(f"Persona voice_id '{persona_voice}' appears to be a file path, not an ElevenLabs voice ID. Using default voice.")
+                debug_log(f"WARNING: voice_id '{persona_voice}' looks like a file path, using default {DEFAULT_VOICE_ID}")
+                self.voice_id = DEFAULT_VOICE_ID
+            else:
+                self.voice_id = persona_voice
         except Exception as e:
             logger.warning(f"Could not get agent persona voice_id: {e}")
         

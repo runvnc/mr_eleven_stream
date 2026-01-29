@@ -417,7 +417,15 @@ async def speak(
         try:
             agent_data = await service_manager.get_agent_data(context.agent_name)
             persona = agent_data["persona"]
-            voiceid = persona.get("voice_id", DEFAULT_VOICE_ID)
+            persona_voice = persona.get("voice_id", DEFAULT_VOICE_ID)
+            
+            # Check if voice_id looks like a file path (not a valid ElevenLabs voice ID)
+            if persona_voice and (persona_voice.startswith('/') or persona_voice.startswith('.') or 
+                                  persona_voice.endswith('.mp3') or persona_voice.endswith('.wav')):
+                logger.warning(f"Persona voice_id '{persona_voice}' appears to be a file path, not an ElevenLabs voice ID. Using default voice.")
+                voiceid = DEFAULT_VOICE_ID
+            else:
+                voiceid = persona_voice
         except Exception as e:
             logger.warning(f"Could not get agent persona voice_id, using default. Error: {str(e)}")
             voiceid = voice_id or DEFAULT_VOICE_ID
