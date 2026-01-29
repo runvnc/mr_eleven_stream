@@ -7,7 +7,7 @@ setup(
     packages=find_packages(where="src"),
     package_dir={"": "src"},
     install_requires=[
-        "elevenlabs>=1.0.0",
+        "elevenlabs>=2.32.0",
         "dotenv"
     ],
     extras_require={
