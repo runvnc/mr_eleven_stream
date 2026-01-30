@@ -5,6 +5,7 @@ import subprocess
 from typing import AsyncGenerator, Optional, Dict, Any
 from elevenlabs.client import ElevenLabs
 from lib.providers.services import service, service_manager
+from lib.providers.hooks import hook
 from lib.providers.commands import command
 # use .env for configuration
 import dotenv
@@ -39,6 +40,9 @@ USE_SPEAKER_BOOST_DEFAULT = os.environ.get('ELEVENLABS_USE_SPEAKER_BOOST', 'fals
 
 # Global dictionary to track active speak() calls per log_id
 _active_speak_locks: Dict[str, asyncio.Lock] = {}
+# Global dictionary to track active AudioPacer instances per log_id (for interrupt support)
+_active_pacers: Dict[str, Any] = {}
+
 
 
 # Local playback support
@@ -450,6 +454,10 @@ async def speak(
         if not local_playback:
             pacer = AudioPacer(sample_rate=8000)  # ulaw is 8kHz
             
+            # Track this pacer for interrupt support
+            if log_id:
+                _active_pacers[log_id] = pacer
+            
             async def send_to_sip(chunk, timestamp=None, context=None):
                 """Callback for AudioPacer to send chunks to SIP."""
                 try:
@@ -493,6 +501,10 @@ async def speak(
             # Stop the pacer
             await pacer.stop()
             
+            # Remove from active pacers
+            if log_id and log_id in _active_pacers:
+                del _active_pacers[log_id]
+            
             if pacer.interrupted:
                 logger.info(f"SPEAK_DEBUG: Interrupted after {chunk_count} chunks, {pacer.bytes_sent} bytes sent")
                 if chunk_count < 2:
@@ -514,3 +526,32 @@ async def speak(
             lock = _active_speak_locks[log_id]
             if lock.locked():
                 lock.release()
+
+
+@hook()
+async def on_interrupt(context=None):
+    """
+    Handle interruption signal from the system.
+    This is called when the user interrupts the AI (e.g., starts speaking during TTS).
+    Cancels any active TTS streams for the current session.
+    """
+    log_id = None
+    if context and hasattr(context, 'log_id'):
+        log_id = context.log_id
+    
+    if not log_id:
+        logger.debug("on_interrupt called without log_id, cannot cancel specific stream")
+        return
+    
+    # Cancel active pacer for this session
+    if log_id in _active_pacers:
+        pacer = _active_pacers[log_id]
+        logger.info(f"on_interrupt: Interrupting TTS stream for session {log_id}")
+        pacer.interrupt()
+    
+    # Also cleanup any realtime streaming session
+    if is_realtime_streaming_enabled() and has_active_session(log_id):
+        logger.info(f"on_interrupt: Cleaning up realtime session for {log_id}")
+        session = get_session(log_id)
+        if session:
+            await cleanup_session(log_id)
