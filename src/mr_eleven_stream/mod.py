@@ -15,8 +15,14 @@ dotenv.load_dotenv()
 
 import logging
 
+# Check MR_DEBUG env variable
+MR_DEBUG = os.environ.get('MR_DEBUG', '').lower() in ('1', 'true', 'yes')
+LOG_LEVEL = logging.DEBUG if MR_DEBUG else logging.WARNING
+
 # Import realtime streaming support
 from .realtime_stream import has_active_session, get_session, cleanup_session, is_realtime_streaming_enabled
+
+logging.getLogger('mr_eleven_stream').setLevel(LOG_LEVEL)
 
 logger = logging.getLogger(__name__)
 
