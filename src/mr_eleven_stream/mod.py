@@ -31,9 +31,11 @@ DEBUG_LOG_FILE = "/tmp/tts_debug.log"
 
 def debug_log(msg):
     """Write debug message to dedicated log file."""
-    import datetime
-    with open(DEBUG_LOG_FILE, 'a') as f:
-        f.write(f"{datetime.datetime.now().isoformat()} | {msg}\n")
+    # Only write to log file if MR_DEBUG is enabled
+    if MR_DEBUG:
+        import datetime
+        with open(DEBUG_LOG_FILE, 'a') as f:
+            f.write(f"{datetime.datetime.now().isoformat()} | {msg}\n")
 
 # Default configuration
 DEFAULT_VOICE_ID = "JBFqnCBsd6RMkjVDRZzb"  # George voice
@@ -497,6 +499,11 @@ async def speak(
 
         if not local_playback:
             # Mark that all chunks have been added
+            # Flush any leftover bytes at end of utterance
+            try:
+                await service_manager.sip_flush_audio(context=context)
+            except Exception:
+                pass
             pacer.mark_finished()
             
             # Wait for pacer to finish sending all buffered audio
