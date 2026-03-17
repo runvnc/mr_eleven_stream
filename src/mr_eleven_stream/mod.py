@@ -499,11 +499,11 @@ async def speak(
 
         if not local_playback:
             # Mark that all chunks have been added
-            # Flush any leftover bytes at end of utterance
-            try:
-                await service_manager.sip_flush_audio(context=context)
-            except Exception:
-                pass
+            # Flush any leftover bytes at end of utterance (disabled)
+            # try:
+            #     await service_manager.sip_flush_audio(context=context)
+            # except Exception:
+            #     pass
             pacer.mark_finished()
             
             # Wait for pacer to finish sending all buffered audio
