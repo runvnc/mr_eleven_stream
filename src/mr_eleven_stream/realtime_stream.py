@@ -19,15 +19,19 @@ from lib.providers.services import service_manager
 
 logger = logging.getLogger(__name__)
 
+# Check MR_DEBUG env variable
+MR_DEBUG = os.environ.get('MR_DEBUG', '').lower() in ('1', 'true', 'yes')
+
 # Debug log file
 DEBUG_LOG_FILE = "/tmp/tts_debug.log"
 
 def debug_log(msg):
     """Write debug message to dedicated log file."""
-    import datetime
-    with open(DEBUG_LOG_FILE, 'a') as f:
-        f.write(f"{datetime.datetime.now().isoformat()} | {msg}\n")
-
+    # Only write to log file if MR_DEBUG is enabled
+    if MR_DEBUG:
+        import datetime
+        with open(DEBUG_LOG_FILE, 'a') as f:
+            f.write(f"{datetime.datetime.now().isoformat()} | {msg}\n")
 def is_realtime_streaming_enabled() -> bool:
     """Check if realtime streaming is enabled via environment variable."""
     val = os.environ.get('MR_ELEVEN_REALTIME_STREAM', '0').lower()
