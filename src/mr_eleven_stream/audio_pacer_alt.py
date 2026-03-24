@@ -1,9 +1,10 @@
 """
-Audio Pacer for Pocket-TTS Streaming
+Audio Pacer for ElevenLabs Streaming TTS
 
 Handles buffering and pacing of audio chunks to match real-time playback speed.
-Adapted from the ElevenLabs/OpenAI S2S AudioPacer.
+Adapted from the OpenAI S2S AudioPacer.
 """
+import os
 import asyncio
 import time
 import logging
@@ -18,6 +19,11 @@ class AudioPacer:
     
     Buffers incoming audio chunks and sends them at the correct rate
     with precise timestamps for proper playback timing.
+
+    TIMESTAMP_OFFSET_SEC: Added to each chunk timestamp to compensate for
+    the fixed latency through the asyncio queue chain before PySIP reads
+    the frame. Default 0.040s (40ms). Set MR_ELEVEN_TIMESTAMP_OFFSET_MS
+    env var to override (e.g. MR_ELEVEN_TIMESTAMP_OFFSET_MS=60).
     """
 
     def __init__(self, sample_rate: int = 8000):
@@ -25,6 +31,10 @@ class AudioPacer:
         Args:
             sample_rate: Audio sample rate in Hz (default 8000 for ulaw telephony)
         """
+        _offset_ms = float(os.environ.get('MR_ELEVEN_TIMESTAMP_OFFSET_MS', '40'))
+        self.timestamp_offset = _offset_ms / 1000.0
+        logger.debug(f"AudioPacer: timestamp_offset={self.timestamp_offset*1000:.0f}ms")
+
         self.sample_rate = sample_rate
         self.buffer = deque()
         self.pacer_task: Optional[asyncio.Task] = None
@@ -56,10 +66,6 @@ class AudioPacer:
     def _set_interrupted(self):
         """Mark pacer as interrupted."""
         self._interrupted = True
-
-    def interrupt(self):
-        """Public method to interrupt the pacer."""
-        self._set_interrupted()
 
     def mark_finished(self):
         """Mark that all chunks have been added."""
@@ -101,9 +107,10 @@ class AudioPacer:
             if len(self.buffer) > 0:
                 chunk = self.buffer.popleft()
                 
-                # Calculate timestamp for this chunk
+                # Calculate timestamp for this chunk, offset forward to compensate
+                # for queue chain latency before PySIP reads the frame.
                 if self.audio_start_time:
-                     chunk_timestamp = self.audio_start_time + (self.bytes_sent / self.sample_rate)
+                     chunk_timestamp = self.audio_start_time + (self.bytes_sent / self.sample_rate) + self.timestamp_offset
                 else:
                      chunk_timestamp = None
                 
