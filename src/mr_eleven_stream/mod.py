@@ -389,6 +389,7 @@ async def speak(
         if context and hasattr(context, 'log_id'):
             log_id = context.log_id
         
+        sip_response_started = False
         # If we have a log_id, check if speak() is already running for it
         if log_id:
             # Get or create lock for this log_id
@@ -458,6 +459,13 @@ async def speak(
                 # If we can't check, proceed anyway
                 logger.debug(f"Could not check halt status: {e}")
         
+        if not local_playback:
+            try:
+                sip_response_started = await service_manager.sip_start_audio_response(context=context)
+                logger.debug(f"SPEAK_DEBUG: SIP audio response start={sip_response_started}")
+            except Exception as e:
+                logger.debug(f"SPEAK_DEBUG: SIP audio response start unavailable: {e}")
+
         # Use AudioPacer for proper timing when sending to SIP
         if not local_playback:
             pacer = AudioPacer(sample_rate=8000)  # ulaw is 8kHz
@@ -534,6 +542,13 @@ async def speak(
         return None
 
     finally:
+        if 'sip_response_started' in locals() and sip_response_started:
+            try:
+                ended = await service_manager.sip_end_audio_response(context=context)
+                logger.debug(f"SPEAK_DEBUG: SIP audio response end={ended}")
+            except Exception as e:
+                logger.warning(f"Failed to end SIP audio response: {e}")
+
         # Always release the lock if we acquired it
         if log_id and log_id in _active_speak_locks:
             lock = _active_speak_locks[log_id]
