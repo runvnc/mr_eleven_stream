@@ -80,6 +80,7 @@ class RealtimeSpeakSession:
         
         # Audio pacer for proper timing
         self._pacer: Optional[AudioPacer] = None
+        self._sip_response_started = False
         
         # ElevenLabs client
         api_key = os.getenv('ELEVENLABS_API_KEY')
@@ -157,6 +158,13 @@ class RealtimeSpeakSession:
             debug_log(f"_process_audio: SIP available={sip_available}")
             
             if sip_available:
+                try:
+                    self._sip_response_started = await service_manager.sip_start_audio_response(context=self.context)
+                    debug_log(f"_process_audio: SIP audio response start={self._sip_response_started}")
+                except Exception as e:
+                    self._sip_response_started = False
+                    debug_log(f"_process_audio: SIP audio response start unavailable: {e}")
+
                 # Set up AudioPacer for proper timing
                 self._pacer = AudioPacer(sample_rate=8000)  # ulaw is 8kHz
                 
@@ -219,6 +227,15 @@ class RealtimeSpeakSession:
             
             await self._pacer.stop()
             debug_log(f"_finalize_pacer: Pacer stopped, total bytes_sent={self._pacer.bytes_sent}")
+
+        if self._sip_response_started:
+            try:
+                ended = await service_manager.sip_end_audio_response(context=self.context)
+                debug_log(f"_finalize_pacer: SIP audio response end={ended}")
+            except Exception as e:
+                logger.warning(f"Failed to end SIP audio response: {e}")
+            finally:
+                self._sip_response_started = False
     
     async def start(self):
         """Start the realtime TTS session."""
@@ -334,6 +351,14 @@ class RealtimeSpeakSession:
         # Stop pacer immediately
         if self._pacer:
             await self._pacer.stop()
+        if self._sip_response_started:
+            try:
+                ended = await service_manager.sip_end_audio_response(context=self.context)
+                debug_log(f"cancel: SIP audio response end={ended}")
+            except Exception as e:
+                logger.warning(f"Failed to end SIP audio response during cancel: {e}")
+            finally:
+                self._sip_response_started = False
         
         # Cancel audio task
         if self._audio_task:
