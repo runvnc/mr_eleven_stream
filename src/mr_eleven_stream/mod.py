@@ -383,6 +383,7 @@ async def speak(
         MR_TTS_PLAY_LOCAL: Set to '1', 'true', 'yes', or 'on' to enable local playback
     """
     voiceid = voice_id or DEFAULT_VOICE_ID
+    acquired_lock = False
     try:
         # Get log_id from context for lock management
         log_id = None
@@ -405,6 +406,7 @@ async def speak(
             
             # Acquire the lock
             await lock.acquire()
+            acquired_lock = True
         
         # Check if there's an active realtime streaming session
         # If so, finalize it instead of starting a new TTS call
@@ -542,18 +544,23 @@ async def speak(
         return None
 
     finally:
+        # Release the speak lock FIRST and synchronously, before any await below.
+        # During barge-in cancellation a CancelledError can be re-raised on the
+        # await further down; releasing here (a sync call that cannot be skipped)
+        # guarantees the lock is never orphaned. Only release if THIS call
+        # actually acquired the lock - the concurrent-rejection path must never
+        # release another in-progress call's lock.
+        if acquired_lock and log_id and log_id in _active_speak_locks:
+            lock = _active_speak_locks[log_id]
+            if lock.locked():
+                lock.release()
+
         if 'sip_response_started' in locals() and sip_response_started:
             try:
                 ended = await service_manager.sip_end_audio_response(context=context)
                 logger.debug(f"SPEAK_DEBUG: SIP audio response end={ended}")
             except Exception as e:
                 logger.warning(f"Failed to end SIP audio response: {e}")
-
-        # Always release the lock if we acquired it
-        if log_id and log_id in _active_speak_locks:
-            lock = _active_speak_locks[log_id]
-            if lock.locked():
-                lock.release()
 
 
 @hook()
